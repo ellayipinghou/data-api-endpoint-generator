@@ -177,10 +177,6 @@ public class DatasetService {
         return repository.findAll();
     }
 
-        public Dataset refreshDataset(UUID id) {
-                return repository.refreshMetadata(id);
-        }
-
     @Transactional
     public void deleteDataset(UUID id) {
         repository.deleteById(id);

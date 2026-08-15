@@ -36,12 +36,4 @@ public interface DatasetRepository {
     default List<DataRow> query(UUID id, List<Filter> filters) {
         return query(id, filters, List.of(), 100, 0);
     }
-
-    /**
-     * Recompute schema and generated endpoints from the physical table
-     * and persist them into the datasets metadata row; returns the
-     * refreshed Dataset.
-     * 
-     */
-    Dataset refreshMetadata(UUID id);
 }

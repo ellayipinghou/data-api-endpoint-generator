@@ -23,6 +23,7 @@ public final class SchemaValidationHelper {
         if (hasHeaderSuspectedDataRow(schema)) {
             issues.add(new PreviewIssue(
                 PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
+                null,
                 "The first row looks like data, not a header"
             ));
         }
@@ -33,16 +34,19 @@ public final class SchemaValidationHelper {
             if (column == null || column.getName() == null || column.getName().isBlank()) {
                 issues.add(new PreviewIssue(
                     PreviewIssueKind.EMPTY_COLUMN_NAME,
+                    column.getName(),
                     "Column name '" + column.getName() + "' cannot be empty"
                 ));
             } else if (!seen.add(column.getName())) {
                 issues.add(new PreviewIssue(
                     PreviewIssueKind.DUPLICATE_COLUMN_NAME,
+                    column.getName(),
                     "Column name '" + column.getName() + "' is a duplicate, must be unique"
                 ));
             } else if (!column.getName().matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
                 issues.add(new PreviewIssue(
                     PreviewIssueKind.INVALID_COLUMN_NAME,
+                    column.getName(),
                     "Column name '" + column.getName() + "' must start with a letter or underscore and contain only letters, numbers, and underscores"
                 ));
             }
@@ -51,7 +55,7 @@ public final class SchemaValidationHelper {
         return issues;
     }
 
-    public static boolean validateSchema(List<PreviewIssue> issues) {
+    public static boolean checkCanSubmit(List<PreviewIssue> issues) {
         return issues.stream().noneMatch(element -> element.getKind().isBlocking());
     }
 

@@ -67,7 +67,7 @@ public class DatasetService {
         }
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
-        boolean canSubmit = SchemaValidationHelper.validateSchema(issues);
+        boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
         return new com.example.dataserv.api.DatasetPreviewResponse(
                 previewId, schema, sampleRows, issues, canSubmit
@@ -105,7 +105,7 @@ public class DatasetService {
     @Transactional(rollbackFor = Exception.class)
     public Dataset createDataset(String name, DatasetSchema schema, InputStream input) throws IOException, SQLException {
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
-        boolean canSubmit = SchemaValidationHelper.validateSchema(issues);
+        boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
         if (!canSubmit) {
             throw new DatasetValidationException("validation failed during createDataset", issues);

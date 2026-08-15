@@ -1,0 +1,1048 @@
+# DataServ Frontend Specification
+
+## 1. Product Goal
+
+DataServ should provide a web interface for developers to:
+
+1. Upload a CSV dataset.
+2. Preview the uploaded data.
+3. Review automatically inferred column names and data types.
+4. Fix or reject obvious ingestion problems before creating the dataset.
+5. Create and manage datasets.
+6. View the API endpoints available for each dataset.
+7. Test those endpoints interactively without writing code.
+8. Build GET query URLs visually using filters, sorting, and pagination.
+9. See the resulting data and row count.
+10. Copy API requests directly into their own applications.
+
+The frontend is primarily a **developer-facing API management and exploration tool**, rather than a traditional end-user data-analysis application.
+
+The core philosophy should be:
+
+> **Everything the UI does should correspond to something a developer can do through the API.**
+
+The UI makes the API easier to discover, understand, and test.
+
+---
+
+# 2. Overall Application Structure
+
+Use a persistent application shell:
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ DataServ                                      + New Dataset   │
+├───────────────┬──────────────────────────────────────────────┤
+│               │                                              │
+│  Datasets     │                                              │
+│               │              Current Page                    │
+│  ─────────    │                                              │
+│               │                                              │
+│  dataset A    │                                              │
+│  dataset B    │                                              │
+│  dataset C    │                                              │
+│               │                                              │
+│               │                                              │
+└───────────────┴──────────────────────────────────────────────┘
+```
+
+### Sidebar
+
+The sidebar should contain:
+
+* **Datasets**
+* **Create Dataset**
+* Possibly **Documentation** later
+* Possibly **Settings** later
+
+The currently selected dataset can appear in the sidebar when the user is viewing one.
+
+---
+
+# 3. Home / Dataset Dashboard
+
+The home page should be the main dataset management screen.
+
+### Header
+
+```text
+Datasets
+
+Your datasets
+Manage datasets and explore their APIs.
+
+                                      + New Dataset
+```
+
+### Dataset cards
+
+Each dataset gets a card:
+
+```text
+┌──────────────────────────────────────────────────────┐
+│ customers.csv                              ● Ready   │
+│                                                      │
+│ 12,482 rows                                           │
+│ 8 columns                                             │
+│ Created Aug 13, 2026                                  │
+│                                                      │
+│ Schema                                                │
+│ name        STRING                                    │
+│ age         INTEGER                                   │
+│ email       STRING                                    │
+│ signup_date DATE                                      │
+│ ...                                                  │
+│                                                      │
+│              View Dataset →                           │
+└──────────────────────────────────────────────────────┘
+```
+
+The card should **not necessarily display the entire schema** if there are many columns. Show perhaps the first 4–5 and:
+
+```text
++ 6 more columns
+```
+
+### Empty state
+
+If there are no datasets:
+
+```text
+No datasets yet
+
+Upload a CSV to create your first DataServ dataset.
+
+                 + Create Dataset
+```
+
+---
+
+# 4. Dataset Creation Flow
+
+This should be a **multi-step page**, not a giant form.
+
+I'd use a wizard:
+
+```text
+Upload → Preview → Confirm → Created
+```
+
+At the top:
+
+```text
+Create Dataset
+
+① Upload ─── ② Preview ─── ③ Confirm ─── ✓ Created
+```
+
+---
+
+# 5. Step 1 — Upload CSV
+
+Simple and focused.
+
+```text
+Create Dataset
+
+Upload your CSV
+
+┌───────────────────────────────────────────┐
+│                                           │
+│              Upload CSV                   │
+│                                           │
+│       Drag and drop your file here       │
+│                                           │
+│                 or                        │
+│                                           │
+│             [ Choose File ]              │
+│                                           │
+│             CSV files only                │
+│                                           │
+└───────────────────────────────────────────┘
+```
+
+Once selected:
+
+```text
+✓ customers.csv
+
+2.4 MB
+```
+
+Then:
+
+```text
+                         Continue →
+```
+
+---
+
+# 6. Step 2 — Preview / Schema Inference
+
+This is one of the **most important screens in the application**.
+
+The backend receives the CSV and performs type inference.
+
+The frontend receives something conceptually like:
+
+```json
+{
+  "columns": [
+    {
+      "name": "name",
+      "type": "STRING"
+    },
+    {
+      "name": "age",
+      "type": "INTEGER"
+    },
+    {
+      "name": "signup_date",
+      "type": "DATE"
+    }
+  ],
+  "previewRows": [...],
+  "rowCount": 12482
+}
+```
+
+## Layout
+
+```text
+Create Dataset
+
+Step 2: Review Dataset
+
+Filename
+customers.csv
+
+12,482 rows · 8 columns
+```
+
+Then:
+
+### Schema section
+
+```text
+Detected Schema
+
+┌───────────────┬──────────────┬─────────────┐
+│ Column        │ Detected Type│ Status      │
+├───────────────┼──────────────┼─────────────┤
+│ name          │ STRING       │ ✓ Valid     │
+│ age           │ INTEGER      │ ✓ Valid     │
+│ email         │ STRING       │ ✓ Valid     │
+│ signup_date   │ DATE         │ ✓ Valid     │
+└───────────────┴──────────────┴─────────────┘
+```
+
+For the initial version, **don't necessarily let users edit the types**.
+
+The system is demonstrating automatic schema inference, so the user is primarily confirming what DataServ inferred.
+
+You could add editing later.
+
+---
+
+# 7. Data Preview
+
+Below the schema:
+
+```text
+Data Preview
+
+Showing first 10 rows
+
+┌────┬──────────┬─────┬─────────────────────┬────────────┐
+│ #  │ name     │ age │ email               │ signup_date│
+├────┼──────────┼─────┼─────────────────────┼────────────┤
+│ 1  │ Alice    │ 25  │ alice@example.com   │ 2025-01-02 │
+│ 2  │ Bob      │ 31  │ bob@example.com     │ 2025-01-14 │
+│ 3  │ Charlie  │ 42  │ charlie@example.com │ 2025-02-01 │
+│ ...                                                   │
+└────┴──────────┴─────┴─────────────────────┴────────────┘
+```
+
+**Only display the first 10 rows.**
+
+This is a preview, not a data explorer.
+
+The backend should not send the entire CSV just so the frontend can display it.
+
+---
+
+# 8. Validation / Problems
+
+Put a validation summary prominently near the schema.
+
+For example:
+
+```text
+✓ Dataset looks good
+
+8 columns detected
+12,482 rows detected
+No type conflicts detected
+```
+
+If there's a problem:
+
+```text
+⚠ 2 issues need attention
+
+age
+Some values could not be interpreted consistently
+Detected type: STRING
+
+signup_date
+Invalid date values detected
+```
+
+The **Create Dataset** button should be disabled when there are blocking errors.
+
+```text
+[ Create Dataset ]
+```
+
+grayed out if invalid.
+
+Warnings could potentially still allow submission.
+
+---
+
+# 9. Step 3 — Confirm
+
+A confirmation screen should be intentionally simple.
+
+```text
+Create Dataset
+
+Dataset name
+
+[ customers ]
+
+Schema
+
+8 columns
+12,482 rows
+
+┌───────────────┬──────────┐
+│ name          │ STRING   │
+│ age           │ INTEGER  │
+│ email         │ STRING   │
+│ ...           │ ...      │
+└───────────────┴──────────┘
+
+              ← Back
+
+                       Create Dataset →
+```
+
+The user chooses the **human-readable dataset name here**.
+
+The backend generates the UUID.
+
+The frontend should **never generate the database table name**.
+
+---
+
+# 10. Created Dataset Screen
+
+After creation, show a success state:
+
+```text
+✓ Dataset created
+
+customers
+
+Dataset ID
+550e8400-e29b-41d4-a716-446655440000
+
+12,482 rows
+8 columns
+
+[ Explore Dataset ]
+```
+
+Then provide the API immediately.
+
+This is important because the application's ultimate purpose is exposing the data through an API.
+
+---
+
+# 11. Dataset Detail Page
+
+This should probably be the most important page after creation.
+
+Use tabs:
+
+```text
+customers
+
+[ Overview ] [ Query ] [ API ] [ Schema ]
+```
+
+I'd use tabs here rather than putting everything on one enormous page.
+
+---
+
+# 12. Overview Tab
+
+```text
+Overview
+
+customers
+
+Dataset ID
+550e8400-e29b-41d4-a716-446655440000
+
+Rows
+12,482
+
+Columns
+8
+
+Created
+Aug 13, 2026
+```
+
+Then a small preview:
+
+```text
+Data Preview
+
+First 10 rows
+
+[table]
+```
+
+And schema:
+
+```text
+Schema
+
+name          STRING
+age           INTEGER
+email         STRING
+signup_date   DATE
+...
+```
+
+---
+
+# 13. API Tab
+
+This should be **developer-focused**.
+
+Show the base endpoint:
+
+```text
+API Endpoint
+
+GET /datasets/550e8400-e29b-41d4-a716-446655440000/query
+
+                         [ Copy ]
+```
+
+Then explain:
+
+```text
+Query Parameters
+```
+
+For example:
+
+```text
+age_gt
+age_gte
+age_lt
+age_lte
+name_eq
+name_contains
+sort
+limit
+offset
+```
+
+Each parameter can have:
+
+```text
+age_gt
+
+Greater than comparison.
+
+Example:
+
+?age_gt=30
+```
+
+---
+
+# 14. The Main Query Builder
+
+This should be the centerpiece of the **Query** tab.
+
+I'd make this very visual.
+
+```text
+Query Dataset
+
+Filters
+
+┌────────────┬───────────────┬────────────┐
+│ Column ▼   │ Operator ▼    │ Value      │
+├────────────┼───────────────┼────────────┤
+│ age        │ greater than  │ 30         │
+└────────────┴───────────────┴────────────┘
+
++ Add Filter
+```
+
+Then:
+
+```text
+Sort
+
+Column: [ age ▼ ]
+Direction: [ Descending ▼ ]
+```
+
+Then:
+
+```text
+Limit
+
+[ 50 ]
+```
+
+---
+
+# 15. Generated GET Endpoint
+
+This is **extremely important**.
+
+Immediately below the controls:
+
+```text
+Generated Request
+
+GET /datasets/550e8400-e29b-41d4-a716-446655440000/query
+    ?age_gt=30
+    &sort=age,desc
+    &limit=50
+
+[ Copy URL ]
+```
+
+I'd actually make this a code block with syntax highlighting.
+
+The user should be able to look at the controls and immediately understand:
+
+> "Oh, THAT is how I query this API."
+
+---
+
+# 16. "Run Query"
+
+Then:
+
+```text
+                         [ Run Query ]
+```
+
+The frontend actually makes the generated GET request.
+
+The result appears underneath.
+
+```text
+Query Results
+
+Showing 10 of 3,421 matching rows
+
+┌────┬──────────┬─────┬──────────────┐
+│ #  │ name     │ age │ email        │
+├────┼──────────┼─────┼──────────────┤
+│ 1  │ Alice    │ 31  │ ...          │
+│ 2  │ Bob      │ 42  │ ...          │
+│ ...                              │
+└──────────────────────────────────┘
+```
+
+Again, **only return/display the first 10 rows in the preview**.
+
+But importantly, the API response should contain something like:
+
+```json
+{
+  "rows": [...],
+  "totalCount": 3421
+}
+```
+
+so the UI can say:
+
+> Showing 10 of 3,421 matching rows.
+
+---
+
+# 17. Simple GET Query Is the Primary Experience
+
+The frontend should make it extremely obvious that this:
+
+```text
+age > 30
+AND country = US
+```
+
+becomes:
+
+```http
+GET /datasets/{id}/query?age_gt=30&country_eq=US
+```
+
+This is the **main API model** of DataServ.
+
+The query builder is essentially a visual URL generator.
+
+---
+
+# 18. Advanced Query — POST Add-on
+
+I would make this a later/secondary feature rather than designing the whole frontend around it.
+
+Something like:
+
+```text
+Query Mode
+
+● Simple GET
+○ Advanced Query
+```
+
+Simple GET is the default.
+
+Advanced Query could eventually support:
+
+```text
+WHERE
+
+┌─ AND ─────────────────────────────┐
+│                                   │
+│ age > 30                          │
+│ country = US                      │
+│                                   │
+│ ┌─ OR ──────────────────────────┐ │
+│ │ status = active               │ │
+│ │ status = pending              │ │
+│ └───────────────────────────────┘ │
+└───────────────────────────────────┘
+```
+
+and generate:
+
+```http
+POST /datasets/{id}/query
+```
+
+with a JSON body.
+
+The UI can show:
+
+```text
+Generated Request
+
+POST /datasets/123/query
+
+{
+  "where": {
+    "and": [...]
+  }
+}
+```
+
+But this should be an **advanced escape hatch**, not the primary API.
+
+---
+
+# 19. Why This Is a Good API/UI Relationship
+
+Your application then has a very clear hierarchy:
+
+```text
+                    DataServ
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+         Dataset API          Web UI
+             │                   │
+             │            visual interface
+             │                   │
+             └─────────┬─────────┘
+                       │
+                 same operations
+```
+
+A developer can:
+
+### Use the UI
+
+```text
+Select age > 30
+        ↓
+Run Query
+```
+
+or:
+
+### Copy the generated URL
+
+```text
+GET /datasets/123/query?age_gt=30
+```
+
+and put it in:
+
+```javascript
+fetch(...)
+```
+
+or:
+
+```python
+requests.get(...)
+```
+
+or:
+
+```java
+RestClient.get(...)
+```
+
+The UI isn't doing something magical that the API can't do.
+
+---
+
+# 20. Dataset Management
+
+On the dataset detail page, have a small danger-zone action:
+
+```text
+Delete Dataset
+
+Deleting this dataset permanently removes its data.
+
+[ Delete Dataset ]
+```
+
+Use a confirmation modal:
+
+```text
+Delete customers?
+
+This will permanently delete:
+
+• 12,482 rows
+• 8 columns
+• API endpoint
+• All stored data
+
+                     Cancel    Delete
+```
+
+Deletion is one of the few things that should definitely be a modal.
+
+---
+
+# 21. What Should Be a Page vs Modal?
+
+### Full pages
+
+Use pages for major workflows:
+
+* Dataset Dashboard
+* Create Dataset
+* Dataset Overview
+* Dataset Query
+* Dataset API
+
+### Tabs
+
+Use tabs **inside a dataset**:
+
+```text
+Overview | Query | API | Schema
+```
+
+### Modal
+
+Use modals for short, focused interactions:
+
+* Confirm deletion
+* Potentially rename dataset
+* Maybe edit a detected schema type later
+
+### Don't use modals for
+
+* CSV preview
+* Query builder
+* API documentation
+* Dataset exploration
+
+Those need enough space to breathe.
+
+---
+
+# 22. Recommended Navigation
+
+I'd ultimately structure the application as:
+
+```text
+/
+└── Dashboard
+    │
+    ├── /datasets
+    │     └── Dataset list
+    │
+    ├── /datasets/new
+    │     ├── Upload
+    │     ├── Preview
+    │     └── Confirm
+    │
+    └── /datasets/:id
+          ├── Overview
+          ├── Query
+          ├── API
+          └── Schema
+```
+
+---
+
+# 23. React Component Structure
+
+This maps nicely onto the structure you already created:
+
+```text
+src/
+├── api/
+│   └── datasets.ts
+│
+├── components/
+│   ├── DatasetList.tsx
+│   ├── DatasetCard.tsx
+│   ├── DatasetTable.tsx
+│   ├── FilterBuilder.tsx
+│   ├── SchemaTable.tsx
+│   ├── ApiEndpoint.tsx
+│   └── DatasetPreview.tsx
+│
+├── pages/
+│   ├── HomePage.tsx
+│   ├── CreateDatasetPage.tsx
+│   ├── DatasetPage.tsx
+│   └── QueryPage.tsx
+│
+├── types/
+│   └── dataset.ts
+│
+├── App.tsx
+└── main.tsx
+```
+
+I'd add the components gradually rather than creating a huge component architecture upfront.
+
+---
+
+# 24. Important Backend/API Addition
+
+To make the frontend architecture work well, I'd distinguish **preview ingestion** from **actual dataset creation**.
+
+The eventual flow should be:
+
+```text
+CSV
+ ↓
+POST /datasets/preview
+ ↓
+infer schema
+ ↓
+return:
+  - columns
+  - inferred types
+  - first 10 rows
+  - row count
+  - validation problems
+ ↓
+User reviews
+ ↓
+POST /datasets
+ ↓
+actual dataset created
+ ↓
+return Dataset
+```
+
+This is much cleaner than trying to create the PostgreSQL table immediately when the user uploads the file.
+
+The preview endpoint should **not create a permanent dataset**.
+
+---
+
+# 25. Suggested API Surface
+
+Your eventual API could look roughly like:
+
+```text
+POST   /datasets/preview
+POST   /datasets
+
+GET    /datasets
+GET    /datasets/{id}
+DELETE /datasets/{id}
+
+GET    /datasets/{id}/query
+
+POST   /datasets/{id}/query        ← advanced, later
+```
+
+### Preview
+
+```text
+POST /datasets/preview
+Content-Type: multipart/form-data
+```
+
+Returns inferred schema + first 10 rows + validation information.
+
+### Create
+
+```text
+POST /datasets
+Content-Type: multipart/form-data
+```
+
+Contains:
+
+```text
+name
+schema
+csv
+```
+
+The backend generates the UUID and physical PostgreSQL table name.
+
+### Query
+
+Primary:
+
+```text
+GET /datasets/{id}/query?age_gt=30&sort=age,desc&limit=50
+```
+
+Advanced, later:
+
+```text
+POST /datasets/{id}/query
+```
+
+with a structured query body.
+
+---
+
+# 26. MVP vs Later
+
+I would **not try to build every feature simultaneously**.
+
+### MVP
+
+Build these first:
+
+1. Dataset dashboard
+2. CSV upload
+3. Preview endpoint
+4. First 10 rows
+5. Schema inference
+6. Validation
+7. Dataset creation
+8. Dataset detail page
+9. GET `/datasets/{id}/query`
+10. Basic filters
+11. Sorting
+12. Limit
+13. Generated endpoint display
+14. Query results preview
+15. Copy URL
+
+That is already a very substantial project.
+
+### Phase 2
+
+Then add:
+
+* Advanced POST query
+* Nested AND/OR
+* More sophisticated validation
+* Pagination controls
+* Editable schema
+* Better API documentation
+* API key/authentication
+* Usage statistics
+* Rate limits
+* Saved queries
+
+---
+
+## The core UX I'd aim for
+
+The entire application should eventually feel like:
+
+```text
+                    UPLOAD CSV
+                         │
+                         ▼
+                 ┌──────────────┐
+                 │   PREVIEW    │
+                 │              │
+                 │ Schema       │
+                 │ Types        │
+                 │ First 10 rows│
+                 │ Validation   │
+                 └──────┬───────┘
+                        │
+                     CREATE
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │   DATASET    │
+                 │              │
+                 │ Schema       │
+                 │ Metadata     │
+                 │ API          │
+                 └──────┬───────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │ QUERY BUILDER│
+                 │              │
+                 │ age > 30     │
+                 │ country = US │
+                 │ sort = age   │
+                 │ limit = 50   │
+                 └──────┬───────┘
+                        │
+                        ▼
+             GET /datasets/.../query
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │   RESULTS    │
+                 │              │
+                 │ 10 rows      │
+                 │ 3,421 total  │
+                 │              │
+                 │ [Copy URL]   │
+                 └──────────────┘
+```
+
+That gives DataServ a **very coherent identity**: it's not just "a website for uploading CSVs." It's a **developer-oriented service that turns datasets into queryable APIs**, with the frontend acting as the discovery, validation, documentation, and interactive testing layer.
+
+And I'd keep the **GET API as the centerpiece**. The advanced POST query language is a natural extension once you have a reason to support arbitrarily nested boolean expressions.

@@ -1,0 +1,231 @@
+SELECT
+    column_name,
+    data_type,
+    is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'datasets'
+ORDER BY ordinal_position;
+
+
+
+
+now give me the full PostgresDatasetRepositoryTest  
+
+
+
+in addition to the successful tests (save metadata, copy, create table, etc) I want to make sure to test the error case where the values dont actually match the type to see what happens. ideally we should have it roll back with an error right? if thats not happening here first fix this code, then write the tests:
+
+
+
+package com.example.dataserv.storage.postgres;
+
+import com.example.dataserv.domain.DataColumn;import com.example.dataserv.domain.DataType;import com.example.dataserv.domain.Dataset;import com.example.dataserv.domain.DatasetSchema;import com.example.dataserv.storage.DatasetRepository;import org.postgresql.PGConnection;import org.postgresql.copy.CopyManager;import org.springframework.jdbc.core.JdbcTemplate;import org.springframework.stereotype.Repository;
+
+import java.io.IOException;import java.io.InputStream;import java.sql.Connection;import java.sql.SQLException;import java.util.List;import java.util.Optional;import java.util.UUID;
+
+@Repositorypublic class PostgresDatasetRepository implements DatasetRepository {
+
+private final JdbcTemplate jdbcTemplate;
+
+public PostgresDatasetRepository(JdbcTemplate jdbcTemplate) {
+    this.jdbcTemplate = jdbcTemplate;
+}
+
+@Override
+public Dataset save(Dataset dataset) {
+    String datasetSql = """
+            INSERT INTO datasets (id, name)
+            VALUES (?, ?)
+            """;
+
+    jdbcTemplate.update(
+            datasetSql,
+            dataset.getId(),
+            dataset.getName()
+    );
+
+    String columnSql = """
+            INSERT INTO dataset_columns (dataset_id, name, data_type)
+            VALUES (?, ?, ?)
+            """;
+
+    for (DataColumn column : dataset.getSchema().getColumns()) {
+        jdbcTemplate.update(
+                columnSql,
+                dataset.getId(),
+                column.getName(),
+                column.getType().name()
+        );
+    }
+
+    return dataset;
+}
+
+@Override
+public Optional<Dataset> findById(UUID id) {
+    String datasetSql = """
+            SELECT id, name
+            FROM datasets
+            WHERE id = ?
+            """;
+
+    return jdbcTemplate.query(
+            datasetSql,
+            rs -> {
+                if (!rs.next()) {
+                    return Optional.empty();
+                }
+
+                UUID datasetId = rs.getObject("id", UUID.class);
+                String name = rs.getString("name");
+
+                String columnSql = """
+                        SELECT name, data_type
+                        FROM dataset_columns
+                        WHERE dataset_id = ?
+                        ORDER BY id
+                        """;
+
+                List<DataColumn> columns = jdbcTemplate.query(
+                        columnSql,
+                        (columnRs, rowNum) -> new DataColumn(
+                                columnRs.getString("name"),
+                                DataType.valueOf(
+                                        columnRs.getString("data_type")
+                                )
+                        ),
+                        datasetId
+                );
+
+                DatasetSchema schema = new DatasetSchema(columns);
+
+                return Optional.of(
+                        new Dataset(
+                                datasetId,
+                                name,
+                                schema
+                        )
+                );
+            },
+            id
+    );
+}
+
+@Override
+public void deleteById(UUID id) {
+    String tableName = getTableName(id);
+
+    // Delete the actual dataset table first
+    dropTable(tableName);
+
+    // Delete column metadata
+    jdbcTemplate.update(
+            "DELETE FROM dataset_columns WHERE dataset_id = ?",
+            id
+    );
+
+    // Delete dataset metadata
+    jdbcTemplate.update(
+            "DELETE FROM datasets WHERE id = ?",
+            id
+    );
+}
+
+/**
+ * Creates the PostgreSQL table that stores the actual dataset rows.
+ */
+public void createTable(
+        Connection connection,
+        String tableName,
+        DatasetSchema schema
+) throws SQLException {
+
+    StringBuilder sql = new StringBuilder();
+
+    sql.append("CREATE TABLE ");
+    sql.append(quoteIdentifier(tableName));
+    sql.append(" (");
+
+    List<DataColumn> columns = schema.getColumns();
+
+    if (columns.isEmpty()) {
+        throw new IllegalArgumentException(
+                "Dataset must contain at least one column"
+        );
+    }
+
+    for (int i = 0; i < columns.size(); i++) {
+        if (i > 0) {
+            sql.append(", ");
+        }
+
+        DataColumn column = columns.get(i);
+
+        sql.append(quoteIdentifier(column.getName()));
+        sql.append(" ");
+        sql.append(column.getType().toPostgresType());
+    }
+
+    sql.append(")");
+
+    try (var statement = connection.createStatement()) {
+        statement.execute(sql.toString());
+    }
+}
+
+/**
+ * Bulk-loads CSV data into an already-created dataset table.
+ */
+public void copyCsv(
+        Connection connection,
+        String tableName,
+        DatasetSchema schema,
+        InputStream input
+) throws SQLException, IOException {
+
+    String columnList = schema.getColumns()
+            .stream()
+            .map(column -> quoteIdentifier(column.getName()))
+            .reduce((a, b) -> a + ", " + b)
+            .orElseThrow(() ->
+                    new IllegalArgumentException(
+                            "Schema has no columns"
+                    )
+            );
+
+    String sql = "COPY "
+            + quoteIdentifier(tableName)
+            + " ("
+            + columnList
+            + ") FROM STDIN WITH (FORMAT csv, HEADER true)";
+
+    PGConnection pgConnection =
+            connection.unwrap(PGConnection.class);
+
+    CopyManager copyManager = pgConnection.getCopyAPI();
+
+    copyManager.copyIn(sql, input);
+}
+
+/**
+ * Generates the physical PostgreSQL table name for a dataset.
+ *
+ * Example:
+ * dataset_<uuid>
+ */
+public String getTableName(UUID datasetId) {
+    return "dataset_" + datasetId.toString().replace("-", "_");
+}
+
+private void dropTable(String tableName) {
+    String sql = "DROP TABLE IF EXISTS " + quoteIdentifier(tableName);
+
+    jdbcTemplate.execute(sql);
+}
+
+private String quoteIdentifier(String identifier) {
+    return "\"" + identifier.replace("\"", "\"\"") + "\"";
+}
+
+}

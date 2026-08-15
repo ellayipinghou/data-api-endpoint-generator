@@ -1,6 +1,7 @@
 export interface DataColumn {
   name: string
   type: DataType
+  operators: string[]
 }
 
 export type DataType =
@@ -24,7 +25,7 @@ export interface Dataset {
   createdAt: string
 }
 
-// DataRow serializes as { "values": { ...arbitrary columns } } —
+// DataRow serializes as { "values": { ...arbitrary columns } } -
 // Jackson treats DataRow as a bean with a single "values" property,
 // it does NOT flatten the map to the top level.
 export interface DataRow {

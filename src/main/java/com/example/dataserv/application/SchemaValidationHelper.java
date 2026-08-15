@@ -2,6 +2,7 @@ package com.example.dataserv.application;
 
 import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.api.PreviewIssue;
+import com.example.dataserv.api.PreviewIssueKind;
 import com.example.dataserv.domain.DataColumn;
 import com.example.dataserv.domain.DatasetSchema;
 
@@ -13,63 +14,45 @@ import java.util.List;
 import java.util.Set;
 
 public final class SchemaValidationHelper {
-
     private SchemaValidationHelper() {}
 
-    public static List<PreviewIssue> validatePreview(DatasetSchema schema) {
+    public static List<PreviewIssue> validateSchema(DatasetSchema schema) {
         List<PreviewIssue> issues = new ArrayList<>();
-        issues.addAll(validateSchema(schema));
-
         if (hasHeaderSuspectedDataRow(schema)) {
             issues.add(new PreviewIssue(
-                "HEADER_SUSPECTED_DATA_ROW",
-                null,
-                "The first row looks like data, not a header.",
-                false
+                PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
+                "The first row looks like data, not a header"
             ));
         }
 
-        return issues;
-    }
-
-    public static List<PreviewIssue> validateCreate(DatasetSchema schema) {
-        return validateSchema(schema);
-    }
-
-    public static boolean canSubmit(List<PreviewIssue> issues) {
-        return issues.stream().noneMatch(element -> element.getIsBlocking());
-    }
-
-    public static void assertCreateAllowed(DatasetSchema schema) {
-        List<PreviewIssue> issues = validateCreate(schema);
-        if (!issues.isEmpty()) {
-            throw new DatasetValidationException("Dataset validation failed", issues);
-        }
-    }
-
-    private static List<PreviewIssue> validateSchema(DatasetSchema schema) {
-        List<PreviewIssue> issues = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
         for (DataColumn column : schema.getColumns()) {
             if (column == null || column.getName() == null || column.getName().isBlank()) {
                 issues.add(new PreviewIssue(
-                        "EMPTY_NAME",
-                        column == null ? null : column.getName(),
-                        "Column name is empty",
-                        true
+                    PreviewIssueKind.EMPTY_COLUMN_NAME,
+                    "Column name '" + column.getName() + "' cannot be empty"
                 ));
             } else if (!seen.add(column.getName())) {
                 issues.add(new PreviewIssue(
-                        "DUPLICATE_NAME",
-                        column.getName(),
-                        "Duplicate column name",
-                        true
+                    PreviewIssueKind.DUPLICATE_COLUMN_NAME,
+                    "Column name '" + column.getName() + "' is a duplicate, must be unique"
                 ));
             }
         }
 
         return issues;
+    }
+
+    public static boolean canSubmit(List<PreviewIssue> issues) {
+        return issues.stream().noneMatch(element -> element.getKind().isBlocking());
+    }
+
+    public static void assertCreateAllowed(DatasetSchema schema) {
+        List<PreviewIssue> issues = validateSchema(schema);
+        if (!issues.isEmpty()) {
+            throw new DatasetValidationException("Dataset validation failed", issues);
+        }
     }
 
     private static boolean hasHeaderSuspectedDataRow(DatasetSchema schema) {

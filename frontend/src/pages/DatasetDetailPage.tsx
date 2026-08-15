@@ -13,6 +13,16 @@ interface QueryFilter {
   value: string
 }
 
+const operatorConfig: Record<string, { value: FilterOperator; label: string }> = {
+  "=": { value: "eq", label: "equals" },
+  "!=": { value: "ne", label: "does not equal" },
+  ">": { value: "gt", label: "greater than" },
+  ">=": { value: "gte", label: "greater than or equal" },
+  "<": { value: "lt", label: "less than" },
+  "<=": { value: "lte", label: "less than or equal" },
+  CONTAINS: { value: "contains", label: "contains" },
+}
+
 function DatasetDetailPage() {
   const { id } = useParams()
   const datasetId = id ?? ""
@@ -212,17 +222,39 @@ function QueryTab({ dataset }: { dataset: Dataset }) {
 
 function FilterRow({ filter, columns, onChange, onRemove }: { filter: QueryFilter; columns: DataColumn[]; onChange: (id: number, update: Partial<QueryFilter>) => void; onRemove: () => void }) {
   const column = columns.find((item) => item.name === filter.column)
-  const operators = operatorsForColumn(column)
+  const operators = (column?.operators ?? [])
+    .map((operator) => operatorConfig[operator])
+    .filter((operator): operator is { value: FilterOperator; label: string } => operator !== undefined)
 
-  return <div className="filter-row"><label><span>Column</span><select value={filter.column} onChange={(event) => onChange(filter.id, { column: event.target.value, operator: "eq" })}>{columns.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label><label><span>Operator</span><select value={filter.operator} onChange={(event) => onChange(filter.id, { operator: event.target.value as FilterOperator })}>{operators.map((operator) => <option key={operator.value} value={operator.value}>{operator.label}</option>)}</select></label><label><span>Value</span>{column?.type === "BOOLEAN" ? <select value={filter.value} onChange={(event) => onChange(filter.id, { value: event.target.value })}><option value="">Select</option><option value="true">true</option><option value="false">false</option></select> : <input type={inputTypeForColumn(column)} value={filter.value} onChange={(event) => onChange(filter.id, { value: event.target.value })} placeholder="Value" />}</label><button className="remove-filter-button" onClick={onRemove} aria-label={`Remove ${filter.column} filter`}>Remove</button></div>
-}
-
-function operatorsForColumn(column: DataColumn | undefined) {
-  const basic = [{ value: "eq" as const, label: "equals" }, { value: "ne" as const, label: "does not equal" }]
-  if (!column) return basic
-  if (column.type === "STRING") return [...basic, { value: "contains" as const, label: "contains" }]
-  if (["INTEGER", "LONG", "DOUBLE", "DATE", "DATETIME"].includes(column.type)) return [...basic, { value: "gt" as const, label: "greater than" }, { value: "gte" as const, label: "greater than or equal" }, { value: "lt" as const, label: "less than" }, { value: "lte" as const, label: "less than or equal" }]
-  return basic
+  return (
+    <div className="filter-row">
+      <label>
+        <span>Column</span>
+        <select
+          value={filter.column}
+          onChange={(event) => {
+            const newColumn = columns.find((item) => item.name === event.target.value)
+            const firstOperator = newColumn?.operators[0]
+            if (!firstOperator || !operatorConfig[firstOperator]) return
+            onChange(filter.id, { column: event.target.value, operator: operatorConfig[firstOperator].value })
+          }}
+        >
+          {columns.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>Operator</span>
+        <select value={filter.operator} onChange={(event) => onChange(filter.id, { operator: event.target.value as FilterOperator })}>
+          {operators.map((operator) => <option key={operator.value} value={operator.value}>{operator.label}</option>)}
+        </select>
+      </label>
+      <label>
+        <span>Value</span>
+        {column?.type === "BOOLEAN" ? <select value={filter.value} onChange={(event) => onChange(filter.id, { value: event.target.value })}><option value="">Select</option><option value="true">true</option><option value="false">false</option></select> : <input type={inputTypeForColumn(column)} value={filter.value} onChange={(event) => onChange(filter.id, { value: event.target.value })} placeholder="Value" />}
+      </label>
+      <button className="remove-filter-button" onClick={onRemove} aria-label={`Remove ${filter.column} filter`}>Remove</button>
+    </div>
+  )
 }
 
 function inputTypeForColumn(column: DataColumn | undefined) {
@@ -246,8 +278,8 @@ function ApiTab({ dataset }: { dataset: Dataset }) {
   const endpointPath = `/datasets/${dataset.id}/query`
   const endpointUrl = `${API_URL}${endpointPath}`
   const [copied, setCopied] = useState(false)
-  const stringColumns = dataset.schema.columns.filter((column) => column.type === "STRING")
-  const orderedColumns = dataset.schema.columns.filter((column) => ["INTEGER", "LONG", "DOUBLE", "DATE", "DATETIME"].includes(column.type))
+  const comparisonColumns = dataset.schema.columns.filter((column) => column.operators.some((operator) => [">", ">=", "<", "<="].includes(operator)))
+  const containsColumns = dataset.schema.columns.filter((column) => column.operators.includes("CONTAINS"))
 
   async function copyEndpoint() {
     try {
@@ -274,8 +306,8 @@ function ApiTab({ dataset }: { dataset: Dataset }) {
         <div className="api-parameter-list">
           <ApiParameter name="column=value or column_eq=value" description="Return rows where a column exactly matches a value." example={`?${dataset.schema.columns[0]?.name ?? "column"}=value`} />
           <ApiParameter name="column_ne=value" description="Return rows where a column does not match a value." />
-          {orderedColumns.length > 0 && <ApiParameter name="column_gt, column_gte, column_lt, column_lte" description="Compare numeric, date, and datetime columns." example={`?${orderedColumns[0].name}_gt=value`} />}
-          {stringColumns.length > 0 && <ApiParameter name="column_contains=value" description="Find string values containing text. column_like is also supported." example={`?${stringColumns[0].name}_contains=value`} />}
+          {comparisonColumns.length > 0 && <ApiParameter name="column_gt, column_gte, column_lt, column_lte" description="Compare numeric, date, and datetime columns." example={`?${comparisonColumns[0].name}_gt=value`} />}
+          {containsColumns.length > 0 && <ApiParameter name="column_contains=value" description="Find string values containing text." example={`?${containsColumns[0].name}_contains=value`} />}
           <ApiParameter name="sort=column,asc|desc" description="Sort by one column. Ascending is used when the direction is omitted." example={`?sort=${dataset.schema.columns[0]?.name ?? "column"},desc`} />
           <ApiParameter name="limit" description="Maximum rows to return. Defaults to 100 when omitted or invalid." example="?limit=50" />
           <ApiParameter name="offset" description="Number of rows to skip before returning results." example="?offset=50" />

@@ -82,7 +82,7 @@ class DatasetServicePreviewTests {
         // HEADER_SUSPECTED_DATA_ROW is now a non-blocking warning
         assertTrue(response.isCanSubmit());
         assertTrue(response.getIssues().stream()
-                .anyMatch(issue -> issue.getKind().equals("HEADER_SUSPECTED_DATA_ROW") && !issue.getIsBlocking()));
+                .anyMatch(issue -> issue.getKind().equals("HEADER_SUSPECTED_DATA_ROW") && !issue.getKind().isBlocking()));
     }
 
     @Test

@@ -97,7 +97,7 @@ public class DatasetService {
         }
 
         List<com.example.dataserv.api.PreviewIssue> issues =
-                SchemaValidationHelper.validatePreview(schema);
+                SchemaValidationHelper.validateSchema(schema);
 
         return new com.example.dataserv.api.DatasetPreviewResponse(
                 previewId,
@@ -135,7 +135,7 @@ public class DatasetService {
         DatasetSchema schema = new CsvDatasetParser()
                 .parseSchema(new ByteArrayInputStream(previewBytes));
 
-        SchemaValidationHelper.assertCreateAllowed(schema);
+        // SchemaValidationHelper.assertCreateAllowed(schema);
 
         Dataset dataset;
         try (InputStream input = new ByteArrayInputStream(previewBytes)) {

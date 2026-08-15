@@ -87,7 +87,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     /*
@@ -136,7 +136,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     /*
@@ -190,7 +190,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     /*
@@ -244,7 +244,7 @@ class SchemaValidationHelperTests {
 
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
-        assertTrue(SchemaValidationHelper.validateSchema(issues));
+        assertTrue(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     @Test
@@ -263,7 +263,7 @@ class SchemaValidationHelperTests {
             .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     /*
@@ -290,22 +290,22 @@ class SchemaValidationHelperTests {
 
     /*
      * =========================
-     * validateSchema
+     * checkCanSubmit
      * =========================
      */
 
     @Test
-    void validateSchemaReturnsTrueForEmptyIssueList() {
-        assertTrue(SchemaValidationHelper.validateSchema(List.of()));
+    void checkCanSubmitReturnsTrueForEmptyIssueList() {
+        assertTrue(SchemaValidationHelper.checkCanSubmit(List.of()));
     }
 
     @Test
-    void validateSchemaReturnsTrueWhenOnlyNonBlockingIssuesPresent() {
+    void checkCanSubmitReturnsTrueWhenOnlyNonBlockingIssuesPresent() {
         List<PreviewIssue> issues = List.of(
-            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data")
+            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "random_col", "looks like data")
         );
 
-        assertTrue(SchemaValidationHelper.validateSchema(issues));
+        assertTrue(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     @ParameterizedTest
@@ -314,21 +314,21 @@ class SchemaValidationHelperTests {
         "DUPLICATE_COLUMN_NAME",
         "INVALID_COLUMN_NAME"
     })
-    void validateSchemaReturnsFalseWhenAnyBlockingIssuePresent(String kindName) {
+    void checkCanSubmitReturnsFalseWhenAnyBlockingIssuePresent(String kindName) {
         PreviewIssueKind kind = PreviewIssueKind.valueOf(kindName);
-        List<PreviewIssue> issues = List.of(new PreviewIssue(kind, "some message"));
+        List<PreviewIssue> issues = List.of(new PreviewIssue(kind, "random_col", "some message"));
 
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     @Test
-    void validateSchemaReturnsFalseWhenBlockingIssueMixedWithNonBlocking() {
+    void checkCanSubmitReturnsFalseWhenBlockingIssueMixedWithNonBlocking() {
         List<PreviewIssue> issues = List.of(
-            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data"),
-            new PreviewIssue(PreviewIssueKind.EMPTY_COLUMN_NAME, "blank")
+            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "random_col", "looks like data"),
+            new PreviewIssue(PreviewIssueKind.EMPTY_COLUMN_NAME, null,"blank")
         );
 
-        assertFalse(SchemaValidationHelper.validateSchema(issues));
+        assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     /*

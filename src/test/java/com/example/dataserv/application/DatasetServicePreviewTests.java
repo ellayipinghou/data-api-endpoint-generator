@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 
 /**
  * Integration-style tests for the preview -> create flow: CSV parsing,
- * PreviewStorage read/write/expiry, and wiring collectIssues/validateSchema
+ * PreviewStorage read/write/expiry, and wiring collectIssues/checkCanSubmit
  * results through to DatasetPreviewResponse and createDataset.
  *
  * Exhaustive validation-rule coverage (which column names/values trigger
@@ -89,7 +89,7 @@ class DatasetServicePreviewTests {
 
     @Test
     void previewWiresCollectedIssuesAndCanSubmitFromSchema() throws Exception {
-        // Sanity check that previewDataset actually plugs collectIssues/validateSchema
+        // Sanity check that previewDataset actually plugs collectIssues/checkCanSubmit
         // output into the response, without re-testing every validation rule here.
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetService service = new DatasetService(repository);

@@ -21,7 +21,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.StringJoiner;
-import com.example.dataserv.application.EndpointGenerator;
 
 @Repository
 public class PostgresDatasetRepository implements DatasetRepository {

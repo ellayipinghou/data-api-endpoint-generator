@@ -1,5 +1,6 @@
 package com.example.dataserv.application;
 
+import com.example.dataserv.api.PreviewIssue;
 import com.example.dataserv.domain.DataColumn;
 import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.DataRow;
@@ -8,8 +9,13 @@ import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.domain.Filter;
 import com.example.dataserv.domain.FilterOperator;
 import com.example.dataserv.storage.DatasetRepository;
+import com.example.dataserv.ingestion.csv.CsvDatasetParser;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -17,22 +23,17 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
-import org.springframework.web.multipart.MultipartFile;
-import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 
 @Service
 public class DatasetService {
@@ -96,15 +97,16 @@ public class DatasetService {
             }
         }
 
-        List<com.example.dataserv.api.PreviewIssue> issues =
-                SchemaValidationHelper.validateSchema(schema);
+        List<PreviewIssue> issues = SchemaValidationHelper.validateSchema(schema);
+        boolean canSubmit = issues.stream()
+                .noneMatch(issue -> issue.getKind().isBlocking());
 
         return new com.example.dataserv.api.DatasetPreviewResponse(
                 previewId,
                 schema,
                 sampleRows,
                 issues,
-                SchemaValidationHelper.canSubmit(issues)
+                canSubmit
         );
     }
 
@@ -135,8 +137,6 @@ public class DatasetService {
         DatasetSchema schema = new CsvDatasetParser()
                 .parseSchema(new ByteArrayInputStream(previewBytes));
 
-        // SchemaValidationHelper.assertCreateAllowed(schema);
-
         Dataset dataset;
         try (InputStream input = new ByteArrayInputStream(previewBytes)) {
             dataset = createDataset(name, schema, input);
@@ -152,7 +152,17 @@ public class DatasetService {
             DatasetSchema schema,
             InputStream input
     ) throws IOException, SQLException {
-        SchemaValidationHelper.assertCreateAllowed(schema);
+        List<PreviewIssue> issues = SchemaValidationHelper.validateSchema(schema);
+
+        if (issues.stream().anyMatch(issue -> issue.getKind().isBlocking())) {
+            throw new IllegalArgumentException(
+                "Dataset validation failed: " +
+                issues.stream()
+                        .map(PreviewIssue::getMessage)
+                        .reduce((a, b) -> a + "; " + b)
+                        .orElse("Unknown validation error")
+                );
+        }
 
         UUID id = UUID.randomUUID();
 
@@ -164,10 +174,6 @@ public class DatasetService {
 
         return repository.findById(id).orElse(dataset);
     }
-
-        // Internal helper removed: service should expose only the name-based
-        // createDataset used by the controller and frontend. Tests should use
-        // the public API and not rely on externally-provided UUIDs.
 
     public Optional<Dataset> findDataset(UUID id) {
         return repository.findById(id);
@@ -184,113 +190,114 @@ public class DatasetService {
 
     public List<DataRow> queryDataset(
             UUID id,
-                        List<Filter> filters
-        ) {
-                Dataset dataset = repository.findById(id)
+            List<Filter> filters
+    ) {
+        Dataset dataset = repository.findById(id)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "Dataset not found: " + id
                         )
                 );
 
-                List<Filter> validatedFilters =
-                                validateAndConvertFilters(
-                                                dataset.getSchema(),
-                                                filters
-                                );
+        List<Filter> validatedFilters =
+                validateAndConvertFilters(
+                        dataset.getSchema(),
+                        filters
+                );
 
-                return repository.query(id, validatedFilters);
+        return repository.query(id, validatedFilters);
     }
 
-        public List<DataRow> queryDatasetWithParams(UUID id, java.util.Map<String, String> params) {
-                // parse params into filters, sort, limit, offset
-                Dataset dataset = repository.findById(id)
-                                .orElseThrow(() ->
-                                                new IllegalArgumentException(
-                                                                "Dataset not found: " + id
-                                                )
-                                );
+    public List<DataRow> queryDatasetWithParams(
+            UUID id,
+            Map<String, String> params
+    ) {
+        Dataset dataset = repository.findById(id)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Dataset not found: " + id
+                        )
+                );
 
-                // simple parsing rules: param keys like "<column>_gt", "<column>_lt", "<column>_contains", or "sort", "limit", "offset"
-                List<Filter> rawFilters = new java.util.ArrayList<>();
-                List<com.example.dataserv.domain.SortSpec> sort = new java.util.ArrayList<>();
-                int limit = 100;
-                int offset = 0;
+        List<Filter> rawFilters = new ArrayList<>();
+        List<com.example.dataserv.domain.SortSpec> sort = new ArrayList<>();
+        int limit = 100;
+        int offset = 0;
 
-                for (var entry : params.entrySet()) {
-                        String key = entry.getKey();
-                        String value = entry.getValue();
+        for (var entry : params.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
 
-                        if (key.equalsIgnoreCase("limit")) {
-                                try {
-                                        limit = Integer.parseInt(value);
-                                } catch (NumberFormatException ignored) {
-                                }
-                                continue;
-                        }
-
-                        if (key.equalsIgnoreCase("offset")) {
-                                try {
-                                        offset = Integer.parseInt(value);
-                                } catch (NumberFormatException ignored) {
-                                }
-                                continue;
-                        }
-
-                        if (key.equalsIgnoreCase("sort")) {
-                                // format: col,dir or multiple comma-separated pairs? support single for now
-                                String[] parts = value.split(",");
-                                if (parts.length >= 1) {
-                                        String col = parts[0];
-                                        String dir = parts.length > 1 ? parts[1] : "asc";
-                                        sort.add(new com.example.dataserv.domain.SortSpec(col, dir));
-                                }
-                                continue;
-                        }
-
-                        // filter param
-                        // find suffix
-                        String column;
-                        FilterOperator op = FilterOperator.EQUALS;
-
-                        if (key.endsWith("_gt")) {
-                                column = key.substring(0, key.length() - 3);
-                                op = FilterOperator.GREATER_THAN;
-                        } else if (key.endsWith("_gte")) {
-                                column = key.substring(0, key.length() - 4);
-                                op = FilterOperator.GREATER_THAN_OR_EQUAL;
-                        } else if (key.endsWith("_lt")) {
-                                column = key.substring(0, key.length() - 3);
-                                op = FilterOperator.LESS_THAN;
-                        } else if (key.endsWith("_lte")) {
-                                column = key.substring(0, key.length() - 4);
-                                op = FilterOperator.LESS_THAN_OR_EQUAL;
-                        } else if (key.endsWith("_ne")) {
-                                column = key.substring(0, key.length() - 3);
-                                op = FilterOperator.NOT_EQUALS;
-                        } else if (key.endsWith("_contains") || key.endsWith("_like")) {
-                                if (key.endsWith("_contains")) {
-                                        column = key.substring(0, key.length() - 9);
-                                } else {
-                                        column = key.substring(0, key.length() - 5);
-                                }
-                                op = FilterOperator.LIKE;
-                        } else if (key.endsWith("_eq")) {
-                                column = key.substring(0, key.length() - 3);
-                                op = FilterOperator.EQUALS;
-                        } else {
-                                // default: treat key as column equals
-                                column = key;
-                                op = FilterOperator.EQUALS;
-                        }
-
-                        rawFilters.add(new Filter(column, op, value));
+            if (key.equalsIgnoreCase("limit")) {
+                try {
+                    limit = Integer.parseInt(value);
+                } catch (NumberFormatException ignored) {
                 }
+                continue;
+            }
 
-                List<Filter> validatedFilters = validateAndConvertFilters(dataset.getSchema(), rawFilters);
+            if (key.equalsIgnoreCase("offset")) {
+                try {
+                    offset = Integer.parseInt(value);
+                } catch (NumberFormatException ignored) {
+                }
+                continue;
+            }
 
-                return repository.query(id, validatedFilters, sort, limit, offset);
+            if (key.equalsIgnoreCase("sort")) {
+                String[] parts = value.split(",");
+                if (parts.length >= 1) {
+                    String col = parts[0];
+                    String dir = parts.length > 1 ? parts[1] : "asc";
+                    sort.add(new com.example.dataserv.domain.SortSpec(col, dir));
+                }
+                continue;
+            }
+
+            String column;
+            FilterOperator op = FilterOperator.EQUALS;
+
+            if (key.endsWith("_gt")) {
+                column = key.substring(0, key.length() - 3);
+                op = FilterOperator.GREATER_THAN;
+            } else if (key.endsWith("_gte")) {
+                column = key.substring(0, key.length() - 4);
+                op = FilterOperator.GREATER_THAN_OR_EQUAL;
+            } else if (key.endsWith("_lt")) {
+                column = key.substring(0, key.length() - 3);
+                op = FilterOperator.LESS_THAN;
+            } else if (key.endsWith("_lte")) {
+                column = key.substring(0, key.length() - 4);
+                op = FilterOperator.LESS_THAN_OR_EQUAL;
+            } else if (key.endsWith("_ne")) {
+                column = key.substring(0, key.length() - 3);
+                op = FilterOperator.NOT_EQUALS;
+            } else if (key.endsWith("_contains") || key.endsWith("_like")) {
+                if (key.endsWith("_contains")) {
+                    column = key.substring(0, key.length() - 9);
+                } else {
+                    column = key.substring(0, key.length() - 5);
+                }
+                op = FilterOperator.LIKE;
+            } else if (key.endsWith("_eq")) {
+                column = key.substring(0, key.length() - 3);
+                op = FilterOperator.EQUALS;
+            } else {
+                column = key;
+                op = FilterOperator.EQUALS;
+            }
+
+            rawFilters.add(new Filter(column, op, value));
         }
+
+        List<Filter> validatedFilters =
+                validateAndConvertFilters(
+                        dataset.getSchema(),
+                        rawFilters
+                );
+
+        return repository.query(id, validatedFilters, sort, limit, offset);
+    }
 
     private List<Filter> validateAndConvertFilters(
             DatasetSchema schema,

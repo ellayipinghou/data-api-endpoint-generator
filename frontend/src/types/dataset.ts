@@ -38,7 +38,6 @@ export type PreviewIssueKind = string
 
 export interface PreviewIssue {
   kind: PreviewIssueKind
-  column: string | null
   message: string
   isBlocking: boolean
 }

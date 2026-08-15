@@ -38,22 +38,27 @@ public final class SchemaValidationHelper {
                     PreviewIssueKind.DUPLICATE_COLUMN_NAME,
                     "Column name '" + column.getName() + "' is a duplicate, must be unique"
                 ));
+            } else if (!column.getName().matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
+                issues.add(new PreviewIssue(
+                    PreviewIssueKind.INVALID_COLUMN_NAME,
+                    "Column name '" + column.getName() + "' must start with a letter or underscore and contain only letters, numbers, and underscores"
+                ));
             }
         }
 
         return issues;
     }
 
-    public static boolean canSubmit(List<PreviewIssue> issues) {
+    public static boolean validateSchema(List<PreviewIssue> issues) {
         return issues.stream().noneMatch(element -> element.getKind().isBlocking());
     }
 
-    public static void assertCreateAllowed(DatasetSchema schema) {
-        List<PreviewIssue> issues = validateSchema(schema);
-        if (!issues.isEmpty()) {
-            throw new DatasetValidationException("Dataset validation failed", issues);
-        }
-    }
+    // public static void assertCreateAllowed(DatasetSchema schema) {
+    //     List<PreviewIssue> issues = validateSchema(schema);
+    //     if (!issues.isEmpty()) {
+    //         throw new DatasetValidationException("Dataset validation failed", issues);
+    //     }
+    // }
 
     private static boolean hasHeaderSuspectedDataRow(DatasetSchema schema) {
         return schema.getColumns().stream().anyMatch(column -> {

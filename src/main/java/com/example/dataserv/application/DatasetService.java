@@ -1,5 +1,6 @@
 package com.example.dataserv.application;
 
+import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.api.PreviewIssue;
 import com.example.dataserv.domain.DataColumn;
 import com.example.dataserv.domain.DataType;
@@ -97,9 +98,8 @@ public class DatasetService {
             }
         }
 
-        List<PreviewIssue> issues = SchemaValidationHelper.validateSchema(schema);
-        boolean canSubmit = issues.stream()
-                .noneMatch(issue -> issue.getKind().isBlocking());
+        List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
+        boolean canSubmit = SchemaValidationHelper.validateSchema(issues);
 
         return new com.example.dataserv.api.DatasetPreviewResponse(
                 previewId,
@@ -152,16 +152,11 @@ public class DatasetService {
             DatasetSchema schema,
             InputStream input
     ) throws IOException, SQLException {
-        List<PreviewIssue> issues = SchemaValidationHelper.validateSchema(schema);
+        List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
+        boolean canSubmit = SchemaValidationHelper.validateSchema(issues);
 
-        if (issues.stream().anyMatch(issue -> issue.getKind().isBlocking())) {
-            throw new IllegalArgumentException(
-                "Dataset validation failed: " +
-                issues.stream()
-                        .map(PreviewIssue::getMessage)
-                        .reduce((a, b) -> a + "; " + b)
-                        .orElse("Unknown validation error")
-                );
+        if (!canSubmit) {
+            throw new DatasetValidationException("validation failed during createDataset", issues);
         }
 
         UUID id = UUID.randomUUID();
@@ -172,7 +167,7 @@ public class DatasetService {
         repository.createTable(id, schema);
         repository.copyData(id, schema, input);
 
-        return repository.findById(id).orElse(dataset);
+        return dataset;
     }
 
     public Optional<Dataset> findDataset(UUID id) {

@@ -4,7 +4,9 @@ import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.api.PreviewIssue;
 import com.example.dataserv.api.PreviewIssueKind;
 import com.example.dataserv.domain.DataColumn;
+import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.DatasetSchema;
+import com.example.dataserv.ingestion.TypeInferer;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,7 +18,7 @@ import java.util.Set;
 public final class SchemaValidationHelper {
     private SchemaValidationHelper() {}
 
-    public static List<PreviewIssue> validateSchema(DatasetSchema schema) {
+    public static List<PreviewIssue> collectIssues(DatasetSchema schema) {
         List<PreviewIssue> issues = new ArrayList<>();
         if (hasHeaderSuspectedDataRow(schema)) {
             issues.add(new PreviewIssue(
@@ -53,60 +55,13 @@ public final class SchemaValidationHelper {
         return issues.stream().noneMatch(element -> element.getKind().isBlocking());
     }
 
-    // public static void assertCreateAllowed(DatasetSchema schema) {
-    //     List<PreviewIssue> issues = validateSchema(schema);
-    //     if (!issues.isEmpty()) {
-    //         throw new DatasetValidationException("Dataset validation failed", issues);
-    //     }
-    // }
-
     private static boolean hasHeaderSuspectedDataRow(DatasetSchema schema) {
         return schema.getColumns().stream().anyMatch(column -> {
-            String header = column.getName();
-            if (header == null) {
+            String header = column == null ? null : column.getName();
+            if (header == null || header.isBlank()) {
                 return true;
             }
-            header = header.trim();
-            if (header.isEmpty()) {
-                return true;
-            }
-
-            try {
-                Integer.parseInt(header);
-                return true;
-            } catch (NumberFormatException ignored) {
-                // continue
-            }
-
-            try {
-                Long.parseLong(header);
-                return true;
-            } catch (NumberFormatException ignored) {
-                // continue
-            }
-
-            try {
-                Double.parseDouble(header);
-                return true;
-            } catch (NumberFormatException ignored) {
-                // continue
-            }
-
-            try {
-                LocalDate.parse(header);
-                return true;
-            } catch (RuntimeException ignored) {
-                // continue
-            }
-
-            try {
-                LocalDateTime.parse(header);
-                return true;
-            } catch (RuntimeException ignored) {
-                // continue
-            }
-
-            return false;
+            return TypeInferer.inferType(List.of(header)) != DataType.STRING;
         });
     }
 }

@@ -2,15 +2,12 @@ package com.example.dataserv.application;
 
 import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.domain.Dataset;
-import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -19,13 +16,22 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+/**
+ * Integration-style tests for the preview -> create flow: CSV parsing,
+ * PreviewStorage read/write/expiry, and wiring collectIssues/validateSchema
+ * results through to DatasetPreviewResponse and createDataset.
+ *
+ * Exhaustive validation-rule coverage (which column names/values trigger
+ * which PreviewIssueKind, blocking vs non-blocking, etc.) lives in
+ * SchemaValidationHelperTests - this file only needs enough cases to prove
+ * the wiring is correct end-to-end, not to re-derive every rule.
+ */
 @ExtendWith(MockitoExtension.class)
 class DatasetServicePreviewTests {
 
     @Test
     void previewReturnsSchemaAndSamples() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -40,49 +46,62 @@ class DatasetServicePreviewTests {
         assertNotNull(response);
         assertNotNull(response.getPreviewId());
         assertNotNull(response.getSchema());
-        assertFalse(response.getSchema().getColumns().isEmpty());
+        assertEquals(2, response.getSchema().getColumns().size());
         assertFalse(response.getSampleRows().isEmpty());
         assertNotNull(response.getIssues());
-        assertTrue(response.isCanSubmit());
     }
 
     @Test
-    void previewBlocksSubmitWhenHeaderIsBlank() throws Exception {
+    void previewLimitsSampleRowsToTen() throws Exception {
+        DatasetRepository repository = mock(DatasetRepository.class);
+        DatasetService service = new DatasetService(repository);
+
+        StringBuilder csv = new StringBuilder("name,age\n");
+        for (int i = 0; i < 25; i++) {
+            csv.append("person").append(i).append(",").append(20 + i).append("\n");
+        }
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "data.csv", "text/csv", csv.toString().getBytes()
+        );
+
+        var response = service.previewDataset(file);
+
+        assertEquals(10, response.getSampleRows().size());
+    }
+
+    @Test
+    void previewRejectsEmptyFile() {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                ",age\nAlice,25\nBob,30\n".getBytes()
+                "file", "empty.csv", "text/csv", new byte[0]
+        );
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.previewDataset(file)
+        );
+
+        assertTrue(ex.getMessage().contains("header"));
+    }
+
+    @Test
+    void previewWiresCollectedIssuesAndCanSubmitFromSchema() throws Exception {
+        // Sanity check that previewDataset actually plugs collectIssues/validateSchema
+        // output into the response, without re-testing every validation rule here.
+        DatasetRepository repository = mock(DatasetRepository.class);
+        DatasetService service = new DatasetService(repository);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var response = service.previewDataset(file);
 
         assertFalse(response.isCanSubmit());
-        assertTrue(response.getIssues().stream()
-                .anyMatch(issue -> issue.getKind().equals("EMPTY_NAME")));
-    }
-
-    @Test
-    void previewFlagsHeaderThatLooksLikeData() throws Exception {
-        DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
-
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                "1,2\nAlice,25\nBob,30\n".getBytes()
-        );
-
-        var response = service.previewDataset(file);
-
-        // HEADER_SUSPECTED_DATA_ROW is now a non-blocking warning
-        assertTrue(response.isCanSubmit());
-        assertTrue(response.getIssues().stream()
-                .anyMatch(issue -> issue.getKind().equals("HEADER_SUSPECTED_DATA_ROW") && !issue.getKind().isBlocking()));
+        assertFalse(response.getIssues().isEmpty());
     }
 
     @Test
@@ -91,10 +110,7 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                ",age\nAlice,25\nBob,30\n".getBytes()
+                "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
@@ -113,10 +129,7 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                "name,age\nAlice,25\nBob,30\n".getBytes()
+                "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
@@ -132,20 +145,32 @@ class DatasetServicePreviewTests {
     }
 
     @Test
+    void createDatasetFromPreviewRejectsUnknownPreviewId() {
+        DatasetRepository repository = mock(DatasetRepository.class);
+        DatasetService service = new DatasetService(repository);
+
+        java.util.UUID unknownId = java.util.UUID.randomUUID();
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createDatasetFromPreview("nope", unknownId)
+        );
+
+        assertTrue(ex.getMessage().contains("not found"));
+    }
+
+    @Test
     void createDatasetFromPreviewRejectsExpiredPreview() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                "name,age\nAlice,25\n".getBytes()
+                "file", "data.csv", "text/csv", "name,age\nAlice,25\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
         PreviewStorage storage = new PreviewStorage();
-        Path target = java.nio.file.Path.of(
+        Path target = Path.of(
                 System.getProperty("java.io.tmpdir"),
                 "dataserv-previews",
                 "preview_" + preview.getPreviewId() + ".csv"

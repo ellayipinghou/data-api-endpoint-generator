@@ -18,7 +18,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/datasets")
 public class DatasetController {
-
     private final DatasetService service;
 
     public DatasetController(DatasetService service) {
@@ -31,44 +30,21 @@ public class DatasetController {
      * =========================
      */
 
-        @PostMapping("/preview")
-        public ResponseEntity<com.example.dataserv.api.DatasetPreviewResponse> previewDataset(
-                        @RequestPart MultipartFile file
-        ) throws IOException {
-
-                com.example.dataserv.api.DatasetPreviewResponse preview = service.previewDataset(file);
-
-                return ResponseEntity.ok(preview);
-        }
+    @PostMapping("/preview")
+    public ResponseEntity<com.example.dataserv.api.DatasetPreviewResponse> previewDataset(@RequestPart MultipartFile file) throws IOException {
+            com.example.dataserv.api.DatasetPreviewResponse preview = service.previewDataset(file);
+            return ResponseEntity.ok(preview);
+    }
 
     @PostMapping
-    public ResponseEntity<Dataset> createDataset(
-            @RequestParam String name,
-            @RequestPart DatasetSchema schema,
-            @RequestPart MultipartFile file
-    ) throws IOException, SQLException {
-
-        Dataset dataset =
-                service.createDataset(
-                        name,
-                        schema,
-                        file.getInputStream()
-                );
-
+    public ResponseEntity<Dataset> createDataset(@RequestParam String name, @RequestPart DatasetSchema schema, @RequestPart MultipartFile file) throws IOException, SQLException {
+        Dataset dataset = service.createDataset(name, schema, file.getInputStream());
         return ResponseEntity.ok(dataset);
     }
 
     @PostMapping("/from-preview")
-    public ResponseEntity<Dataset> createDatasetFromPreview(
-            @RequestParam String name,
-            @RequestParam UUID previewId
-    ) throws IOException, SQLException {
-        Dataset dataset =
-                service.createDatasetFromPreview(
-                        name,
-                        previewId
-                );
-
+    public ResponseEntity<Dataset> createDatasetFromPreview(@RequestParam String name, @RequestParam UUID previewId) throws IOException, SQLException {
+        Dataset dataset = service.createDatasetFromPreview(name, previewId);
         return ResponseEntity.ok(dataset);
     }
 
@@ -80,20 +56,14 @@ public class DatasetController {
 
     @GetMapping
     public ResponseEntity<List<Dataset>> getDatasets() {
-        return ResponseEntity.ok(
-                service.findAllDatasets()
-        );
+        return ResponseEntity.ok(service.findAllDatasets());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Dataset> getDataset(
-            @PathVariable UUID id
-    ) {
+    public ResponseEntity<Dataset> getDataset(@PathVariable UUID id) {
         return service.findDataset(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() ->
-                        ResponseEntity.notFound().build()
-                );
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /*
@@ -103,50 +73,28 @@ public class DatasetController {
      */
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDataset(
-            @PathVariable UUID id
-    ) {
+    public ResponseEntity<Void> deleteDataset(@PathVariable UUID id) {
         service.deleteDataset(id);
-
         return ResponseEntity.noContent().build();
     }
 
-        @PostMapping("/{id}/refresh")
-        public ResponseEntity<Dataset> refreshDataset(
-                        @PathVariable UUID id
-        ) {
-                Dataset updated = service.refreshDataset(id);
+    /*
+    * =========================
+    * Dataset querying
+    * =========================
+    */
 
-                return ResponseEntity.ok(updated);
+    @PostMapping("/{id}/query")
+    public ResponseEntity<List<DataRow>> queryDataset(@PathVariable UUID id,@RequestBody List<Filter> filters) {
+        return ResponseEntity.ok(service.queryDataset(id, filters));
+    }
+
+    @GetMapping("/{id}/query")
+    public ResponseEntity<List<DataRow>> getDatasetQuery(@PathVariable UUID id, @RequestParam(required = false) java.util.Map<String, String> params) {
+        if (params == null) {
+                params = java.util.Map.of();
         }
 
-        /*
-        * =========================
-        * Dataset querying
-        * =========================
-        */
-
-        @PostMapping("/{id}/query")
-        public ResponseEntity<List<DataRow>> queryDataset(
-                @PathVariable UUID id,
-                @RequestBody List<Filter> filters
-        ) {
-                return ResponseEntity.ok(
-                        service.queryDataset(id, filters)
-                );
-        }
-
-        @GetMapping("/{id}/query")
-        public ResponseEntity<List<DataRow>> getDatasetQuery(
-                @PathVariable UUID id,
-                @RequestParam(required = false) java.util.Map<String, String> params
-        ) {
-                if (params == null) {
-                        params = java.util.Map.of();
-                }
-
-                return ResponseEntity.ok(
-                                service.queryDatasetWithParams(id, params)
-                );
-        }
+        return ResponseEntity.ok(service.queryDatasetWithParams(id, params));
+    }
 }

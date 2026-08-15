@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.StringJoiner;
 import com.example.dataserv.application.EndpointGenerator;
 
@@ -38,27 +39,15 @@ public class PostgresDatasetRepository implements DatasetRepository {
     public void saveMetadata(Dataset dataset) {
         String sql = 
             """
-            INSERT INTO datasets (id, name, schema, endpoints, created_at)
-            VALUES (?, ?, ?::jsonb, ?::jsonb, ?)
+            INSERT INTO datasets (id, name, created_at)
+            VALUES (?, ?, ?)
             """;
-
-        String schemaJson = null;
-        String endpointsJson = null;
-
-        // TODO: these are repetitive, the only conceptual difference is endpointsJson contains operators
-        // Find some way to simplify
-        if (dataset.getSchema() != null) {
-            schemaJson = toJson(dataset.getSchema());
-            endpointsJson = EndpointGenerator.generate(dataset.getSchema());
-        }
 
         try {
             jdbcTemplate.update(
                 sql,
                 dataset.getId(),
                 dataset.getName(),
-                schemaJson,
-                endpointsJson,
                 OffsetDateTime.ofInstant(dataset.getCreatedAt(), java.time.ZoneOffset.UTC)
             );
         } catch (RuntimeException e) {
@@ -67,33 +56,6 @@ public class PostgresDatasetRepository implements DatasetRepository {
                 e
             );
         }
-    }
-
-    // TODO: take this out and put it in DatasetSchema, then refactor EndpointGenerator to use it, then just add the operators
-    private String toJson(DatasetSchema schema) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"columns\":[");
-
-        StringJoiner joiner = new StringJoiner(",");
-        for (DataColumn col : schema.getColumns()) {
-            StringBuilder item = new StringBuilder();
-            item.append("{");
-            item.append("\"name\":\"").append(escapeJson(col.getName())).append("\"");
-            item.append(",\"type\":\"").append(col.getType().name()).append("\"");
-            item.append("}");
-            joiner.add(item.toString());
-        }
-
-        sb.append(joiner.toString());
-        sb.append("]}");
-
-        return sb.toString();
-    }
-
-    // TODO: move this too
-    private String escapeJson(String s) {
-            return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /**
@@ -108,26 +70,7 @@ public class PostgresDatasetRepository implements DatasetRepository {
         }
 
         String tableName = getTableName(datasetId);
-        StringBuilder sql = new StringBuilder();
-        sql.append("CREATE TABLE ");
-        sql.append(quoteIdentifier(tableName));
-        sql.append(" (");
-
-        List<DataColumn> columns = schema.getColumns();
-
-        for (int i = 0; i < columns.size(); i++) {
-            if (i > 0) {
-                sql.append(", ");
-            }
-
-            DataColumn column = columns.get(i);
-
-            sql.append(quoteIdentifier(column.getName()));
-            sql.append(" ");
-            sql.append(column.getType().toPostgresType());
-        }
-
-        sql.append(")");
+        String sql = "CREATE TABLE " + quoteIdentifier(tableName) + " (" + buildColumnDefinitions(schema) + ")";
 
         try {
             jdbcTemplate.execute((Connection connection) -> {
@@ -140,6 +83,17 @@ public class PostgresDatasetRepository implements DatasetRepository {
             throw new SQLException("Failed to create table " + tableName, e);
         }
     }
+
+    private String buildColumnDefinitions(DatasetSchema schema) {
+    return schema.getColumns()
+        .stream()
+        .map(column ->
+            quoteIdentifier(column.getName())
+                + " "
+                + column.getType().toPostgresType()
+        )
+        .collect(Collectors.joining(", "));
+}
 
     /**
      * Bulk-loads data into an already-created dataset table
@@ -162,19 +116,11 @@ public class PostgresDatasetRepository implements DatasetRepository {
 
         String tableName = getTableName(datasetId);
 
-        String columnList = schema.getColumns()
-            .stream()
-            .map(column -> quoteIdentifier(column.getName()))
-            .reduce((a, b) -> a + ", " + b)
-            .orElseThrow(() ->
-                new IllegalArgumentException("Schema has no columns")
-            );
-
         String sql = 
             "COPY "
             + quoteIdentifier(tableName)
             + " ("
-            + columnList
+            + buildColumnList(schema)
             + ") FROM STDIN WITH (FORMAT csv, HEADER true)";
 
         try {
@@ -204,6 +150,13 @@ public class PostgresDatasetRepository implements DatasetRepository {
         }
     }
 
+    private String buildColumnList(DatasetSchema schema) {
+        return schema.getColumns()
+            .stream()
+            .map(column -> quoteIdentifier(column.getName()))
+            .collect(Collectors.joining(", "));
+    }
+
     /**
      * Finds a dataset by its metadata ID.
      *
@@ -213,11 +166,12 @@ public class PostgresDatasetRepository implements DatasetRepository {
     @Override
     public Optional<Dataset> findById(UUID id) {
 
-        String sql = """
-                SELECT id, name, created_at
-                FROM datasets
-                WHERE id = ?
-                """;
+        String sql = 
+            """
+            SELECT id, name, created_at
+            FROM datasets
+            WHERE id = ?
+            """;
 
         try {
             return jdbcTemplate.query(
@@ -251,33 +205,6 @@ public class PostgresDatasetRepository implements DatasetRepository {
                     "Failed to find dataset " + id,
                     e
             );
-        }
-    }
-
-    // TODO: this can potentially be refactored to have a shared helper with the createTable to not repeat so much code. only real difference is the sql statement being update rather than create
-    @Override
-    public Dataset refreshMetadata(UUID id) {
-        UUID datasetId = id;
-        String sqlSelect = "SELECT name, created_at FROM datasets WHERE id = ?";
-        try {
-            var metadata = jdbcTemplate.queryForMap(sqlSelect, datasetId);
-            String name = (String) metadata.get("name");
-            Instant createdAt = ((OffsetDateTime) metadata.get("created_at")).toInstant();
-            DatasetSchema schema = getSchema(datasetId);
-            String schemaJson = toJson(schema);
-            String endpointsJson = EndpointGenerator.generate(schema);
-            String sqlUpdate = "UPDATE datasets SET schema = ?::jsonb, endpoints = ?::jsonb WHERE id = ?";
-            jdbcTemplate.update(
-                sqlUpdate,
-                schemaJson,
-                endpointsJson,
-                datasetId
-            );
-
-            return new Dataset(datasetId, name, schema, countRows(datasetId), createdAt);
-
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("Failed to refresh metadata for dataset " + id, e);
         }
     }
 

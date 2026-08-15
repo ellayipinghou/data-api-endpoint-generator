@@ -29,8 +29,8 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesReturnsEmptyListForValidSchema() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("age", DataType.INTEGER)
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("age", DataType.INTEGER)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -41,7 +41,7 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesReturnsEmptyListForSingleValidColumn() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("id", DataType.LONG)
+            new DataColumn("id", DataType.LONG)
         );
 
         assertTrue(SchemaValidationHelper.collectIssues(schema).isEmpty());
@@ -56,33 +56,33 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesFlagsEmptyStringColumnName() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("", DataType.STRING),
-                new DataColumn("age", DataType.INTEGER)
+            new DataColumn("", DataType.STRING),
+            new DataColumn("age", DataType.INTEGER)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.EMPTY_COLUMN_NAME));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.EMPTY_COLUMN_NAME));
     }
 
     @Test
     void collectIssuesFlagsBlankColumnName() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("   ", DataType.STRING),
-                new DataColumn("age", DataType.INTEGER)
+            new DataColumn("   ", DataType.STRING),
+            new DataColumn("age", DataType.INTEGER)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.EMPTY_COLUMN_NAME));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.EMPTY_COLUMN_NAME));
     }
 
     @Test
     void emptyColumnNameIsBlocking() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("", DataType.STRING)
+            new DataColumn("", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -99,8 +99,8 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesFlagsDuplicateColumnNames() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("name", DataType.INTEGER)
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("name", DataType.INTEGER)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -112,16 +112,16 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesOnlyFlagsSecondOccurrenceAsDuplicate() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("name", DataType.STRING)
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("name", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         long duplicateCount = issues.stream()
-                .filter(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME)
-                .count();
+            .filter(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME)
+            .count();
 
         // first "name" is fine, 2nd and 3rd are duplicates
         assertEquals(2, duplicateCount);
@@ -130,8 +130,8 @@ class SchemaValidationHelperTests {
     @Test
     void duplicateColumnNameIsBlocking() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("name", DataType.STRING)
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("name", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -147,45 +147,45 @@ class SchemaValidationHelperTests {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "first name",   // contains a space
-            "age!",         // punctuation
-            "123abc",       // starts with a digit, but not purely numeric
-            "na-me"         // hyphen
+        "first name",   // contains a space
+        "age!",         // punctuation
+        "123abc",       // starts with a digit, but not purely numeric
+        "na-me"         // hyphen
     })
     void collectIssuesFlagsInvalidColumnNames(String columnName) {
         DatasetSchema schema = schemaOf(
-                new DataColumn(columnName, DataType.STRING)
+            new DataColumn(columnName, DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "name",
-            "_name",
-            "Name123",
-            "first_name",
-            "_"
+        "name",
+        "_name",
+        "Name123",
+        "first_name",
+        "_"
     })
     void collectIssuesAllowsValidIdentifierColumnNames(String columnName) {
         DatasetSchema schema = schemaOf(
-                new DataColumn(columnName, DataType.STRING)
+            new DataColumn(columnName, DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .noneMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
+            .noneMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
     }
 
     @Test
     void invalidColumnNameIsBlocking() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("first name", DataType.STRING)
+            new DataColumn("first name", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -211,39 +211,39 @@ class SchemaValidationHelperTests {
     })
     void collectIssuesFlagsHeadersThatLookLikeData(String columnName) {
         DatasetSchema schema = schemaOf(
-                new DataColumn(columnName, DataType.STRING)
+            new DataColumn(columnName, DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"name", "age", "created_at", "_internal"})
     void collectIssuesDoesNotFlagRealisticHeadersAsSuspectedDataRow(String columnName) {
         DatasetSchema schema = schemaOf(
-                new DataColumn(columnName, DataType.STRING)
+            new DataColumn(columnName, DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .noneMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+            .noneMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
     }
 
     @Test
     void headerSuspectedDataRowIsNotBlockingOnItsOwn() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("true", DataType.STRING),
-                new DataColumn("false", DataType.STRING)
+            new DataColumn("true", DataType.STRING),
+            new DataColumn("false", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
         assertTrue(SchemaValidationHelper.validateSchema(issues));
     }
 
@@ -253,16 +253,16 @@ class SchemaValidationHelperTests {
         // both issues are expected to surface, and the blocking one (INVALID_COLUMN_NAME)
         // means this schema cannot be submitted as-is.
         DatasetSchema schema = schemaOf(
-                new DataColumn("1", DataType.STRING),
-                new DataColumn("2", DataType.STRING)
+            new DataColumn("1", DataType.STRING),
+            new DataColumn("2", DataType.STRING)
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
         assertFalse(SchemaValidationHelper.validateSchema(issues));
     }
 
@@ -275,10 +275,10 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesCanReturnMultipleDistinctIssuesForOneSchema() {
         DatasetSchema schema = schemaOf(
-                new DataColumn("", DataType.STRING),          // empty
-                new DataColumn("name", DataType.STRING),
-                new DataColumn("name", DataType.STRING),       // duplicate
-                new DataColumn("bad name!", DataType.STRING)   // invalid
+            new DataColumn("", DataType.STRING),          // empty
+            new DataColumn("name", DataType.STRING),
+            new DataColumn("name", DataType.STRING),       // duplicate
+            new DataColumn("bad name!", DataType.STRING)   // invalid
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
@@ -302,7 +302,7 @@ class SchemaValidationHelperTests {
     @Test
     void validateSchemaReturnsTrueWhenOnlyNonBlockingIssuesPresent() {
         List<PreviewIssue> issues = List.of(
-                new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data")
+            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data")
         );
 
         assertTrue(SchemaValidationHelper.validateSchema(issues));
@@ -310,9 +310,9 @@ class SchemaValidationHelperTests {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "EMPTY_COLUMN_NAME",
-            "DUPLICATE_COLUMN_NAME",
-            "INVALID_COLUMN_NAME"
+        "EMPTY_COLUMN_NAME",
+        "DUPLICATE_COLUMN_NAME",
+        "INVALID_COLUMN_NAME"
     })
     void validateSchemaReturnsFalseWhenAnyBlockingIssuePresent(String kindName) {
         PreviewIssueKind kind = PreviewIssueKind.valueOf(kindName);
@@ -324,8 +324,8 @@ class SchemaValidationHelperTests {
     @Test
     void validateSchemaReturnsFalseWhenBlockingIssueMixedWithNonBlocking() {
         List<PreviewIssue> issues = List.of(
-                new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data"),
-                new PreviewIssue(PreviewIssueKind.EMPTY_COLUMN_NAME, "blank")
+            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "looks like data"),
+            new PreviewIssue(PreviewIssueKind.EMPTY_COLUMN_NAME, "blank")
         );
 
         assertFalse(SchemaValidationHelper.validateSchema(issues));

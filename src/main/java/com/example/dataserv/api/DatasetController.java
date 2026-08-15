@@ -32,8 +32,8 @@ public class DatasetController {
 
     @PostMapping("/preview")
     public ResponseEntity<com.example.dataserv.api.DatasetPreviewResponse> previewDataset(@RequestPart MultipartFile file) throws IOException {
-            com.example.dataserv.api.DatasetPreviewResponse preview = service.previewDataset(file);
-            return ResponseEntity.ok(preview);
+        com.example.dataserv.api.DatasetPreviewResponse preview = service.previewDataset(file);
+        return ResponseEntity.ok(preview);
     }
 
     @PostMapping

@@ -23,10 +23,10 @@ class PreviewStorageTests {
         PreviewStorage storage = new PreviewStorage(tempDir);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "test.csv",
-                "text/csv",
-                "name,age\nAlice,25\nBob,30\n".getBytes()
+            "file",
+            "test.csv",
+            "text/csv",
+            "name,age\nAlice,25\nBob,30\n".getBytes()
         );
 
         UUID id = storage.save(file);
@@ -50,19 +50,19 @@ class PreviewStorageTests {
         PreviewStorage storage = new PreviewStorage(tempDir);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "expired.csv",
-                "text/csv",
-                "name,age\nAlice,25\n".getBytes()
+            "file",
+            "expired.csv",
+            "text/csv",
+            "name,age\nAlice,25\n".getBytes()
         );
 
         UUID id = storage.save(file);
         Path target = tempDir.resolve("preview_" + id + ".csv");
         Files.setLastModifiedTime(
-                target,
-                FileTime.fromMillis(
-                        System.currentTimeMillis() - Duration.ofHours(1).toMillis()
-                )
+            target,
+            FileTime.fromMillis(
+                System.currentTimeMillis() - Duration.ofHours(1).toMillis()
+            )
         );
 
         assertTrue(storage.isExpired(id, Duration.ofMinutes(30)));
@@ -79,21 +79,21 @@ class PreviewStorageTests {
         UUID expiredId = UUID.randomUUID();
         Path expiredTarget = tempDir.resolve("preview_" + expiredId + ".csv");
         Files.writeString(
-                expiredTarget,
-                "name,age\nAlice,25\n"
+            expiredTarget,
+            "name,age\nAlice,25\n"
         );
         Files.setLastModifiedTime(
-                expiredTarget,
-                FileTime.fromMillis(
-                        System.currentTimeMillis() - Duration.ofHours(1).toMillis()
-                )
+            expiredTarget,
+            FileTime.fromMillis(
+                System.currentTimeMillis() - Duration.ofHours(1).toMillis()
+            )
         );
 
         MockMultipartFile newFile = new MockMultipartFile(
-                "file",
-                "fresh.csv",
-                "text/csv",
-                "name,age\nBob,30\n".getBytes()
+            "file",
+            "fresh.csv",
+            "text/csv",
+            "name,age\nBob,30\n".getBytes()
         );
 
         UUID newId = storage.save(newFile);

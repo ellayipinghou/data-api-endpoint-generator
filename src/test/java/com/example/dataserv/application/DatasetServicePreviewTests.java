@@ -35,10 +35,10 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "data.csv",
-                "text/csv",
-                "name,age\nAlice,25\nBob,30\nCharlie,35\n".getBytes()
+            "file",
+            "data.csv",
+            "text/csv",
+            "name,age\nAlice,25\nBob,30\nCharlie,35\n".getBytes()
         );
 
         var response = service.previewDataset(file);
@@ -62,7 +62,7 @@ class DatasetServicePreviewTests {
         }
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.csv", "text/csv", csv.toString().getBytes()
+            "file", "data.csv", "text/csv", csv.toString().getBytes()
         );
 
         var response = service.previewDataset(file);
@@ -76,12 +76,12 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "empty.csv", "text/csv", new byte[0]
+            "file", "empty.csv", "text/csv", new byte[0]
         );
 
         IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.previewDataset(file)
+            IllegalArgumentException.class,
+            () -> service.previewDataset(file)
         );
 
         assertTrue(ex.getMessage().contains("header"));
@@ -95,7 +95,7 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
+            "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var response = service.previewDataset(file);
@@ -110,14 +110,14 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
+            "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
 
         DatasetValidationException ex = assertThrows(
-                DatasetValidationException.class,
-                () -> service.createDatasetFromPreview("invalid", preview.getPreviewId())
+            DatasetValidationException.class,
+            () -> service.createDatasetFromPreview("invalid", preview.getPreviewId())
         );
 
         assertTrue(ex.getMessage().contains("validation"));
@@ -129,7 +129,7 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
+            "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
@@ -152,8 +152,8 @@ class DatasetServicePreviewTests {
         java.util.UUID unknownId = java.util.UUID.randomUUID();
 
         IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.createDatasetFromPreview("nope", unknownId)
+            IllegalArgumentException.class,
+            () -> service.createDatasetFromPreview("nope", unknownId)
         );
 
         assertTrue(ex.getMessage().contains("not found"));
@@ -165,26 +165,26 @@ class DatasetServicePreviewTests {
         DatasetService service = new DatasetService(repository);
 
         MockMultipartFile file = new MockMultipartFile(
-                "file", "data.csv", "text/csv", "name,age\nAlice,25\n".getBytes()
+            "file", "data.csv", "text/csv", "name,age\nAlice,25\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
         PreviewStorage storage = new PreviewStorage();
         Path target = Path.of(
-                System.getProperty("java.io.tmpdir"),
-                "dataserv-previews",
-                "preview_" + preview.getPreviewId() + ".csv"
+            System.getProperty("java.io.tmpdir"),
+            "dataserv-previews",
+            "preview_" + preview.getPreviewId() + ".csv"
         );
         java.nio.file.Files.setLastModifiedTime(
-                target,
-                java.nio.file.attribute.FileTime.fromMillis(
-                        System.currentTimeMillis() - java.time.Duration.ofHours(1).toMillis()
-                )
+            target,
+            java.nio.file.attribute.FileTime.fromMillis(
+                System.currentTimeMillis() - java.time.Duration.ofHours(1).toMillis()
+            )
         );
 
         IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.createDatasetFromPreview("expired", preview.getPreviewId())
+            IllegalArgumentException.class,
+            () -> service.createDatasetFromPreview("expired", preview.getPreviewId())
         );
 
         assertTrue(ex.getMessage().contains("expired"));

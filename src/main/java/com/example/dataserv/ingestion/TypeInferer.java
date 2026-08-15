@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class TypeInferer {
-
     public static DataType inferType(List<String> values) {
         boolean canBeInteger = true;
         boolean canBeLong = true;

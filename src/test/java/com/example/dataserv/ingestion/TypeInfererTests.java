@@ -10,32 +10,30 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TypeInfererTests {
 
-    private final TypeInferer inferer = new TypeInferer();
-
     @Test
     void infersInteger() {
-        assertEquals(DataType.INTEGER, inferer.inferType(List.of("1", "2", "3", "100")));
+        assertEquals(DataType.INTEGER, TypeInferer.inferType(List.of("1", "2", "3", "100")));
     }
 
     @Test
     void infersLong() {
-        assertEquals(DataType.LONG, inferer.inferType(List.of("2147483648", "3000000000")));
+        assertEquals(DataType.LONG, TypeInferer.inferType(List.of("2147483648", "3000000000")));
     }
 
     @Test
     void infersDouble() {
-        assertEquals(DataType.DOUBLE, inferer.inferType(List.of("1.5", "2.7", "3.14")));
+        assertEquals(DataType.DOUBLE, TypeInferer.inferType(List.of("1.5", "2.7", "3.14")));
     }
 
     @Test
     void infersBoolean() {
-        assertEquals(DataType.BOOLEAN, inferer.inferType(List.of("true", "false", "true")));
+        assertEquals(DataType.BOOLEAN, TypeInferer.inferType(List.of("true", "false", "true")));
     }
 
     @Test
     void infersDate() {
         assertEquals(DataType.DATE,
-            inferer.inferType(List.of(
+            TypeInferer.inferType(List.of(
                 "2026-01-01",
                 "2026-02-15",
                 "2026-08-12"
@@ -47,32 +45,32 @@ class TypeInfererTests {
     void infersDateTime() {
         assertEquals(
             DataType.DATETIME,
-            inferer.inferType(List.of("2026-01-01T10:30:00", "2026-02-15T15:45:00"))
+            TypeInferer.inferType(List.of("2026-01-01T10:30:00", "2026-02-15T15:45:00"))
         );
     }
 
     @Test
     void infersString() {
-        assertEquals(DataType.STRING, inferer.inferType(List.of("Alice", "Bob", "hello")));
+        assertEquals(DataType.STRING, TypeInferer.inferType(List.of("Alice", "Bob", "hello")));
     }
 
     @Test
     void mixedBecomesString() {
-        assertEquals(DataType.STRING, inferer.inferType(List.of("1", "2026-01-01T10:30:00", "hello")));
+        assertEquals(DataType.STRING, TypeInferer.inferType(List.of("1", "2026-01-01T10:30:00", "hello")));
     }
 
     @Test
     void ignoresEmptyValues() {
-        assertEquals(DataType.INTEGER, inferer.inferType(List.of("1", "", "3")));
+        assertEquals(DataType.INTEGER, TypeInferer.inferType(List.of("1", "", "3")));
     }
 
     @Test
     void ignoresNullValues() {
-        assertEquals(DataType.INTEGER, inferer.inferType(Arrays.asList("1", null, "3")));
+        assertEquals(DataType.INTEGER, TypeInferer.inferType(Arrays.asList("1", null, "3")));
     }
 
     @Test
     void choosesLongWhenMixOfLongAndInt() {
-        assertEquals(DataType.LONG, inferer.inferType(List.of("1", "2147483648", "3")));
+        assertEquals(DataType.LONG, TypeInferer.inferType(List.of("1", "2147483648", "3")));
     }
 }

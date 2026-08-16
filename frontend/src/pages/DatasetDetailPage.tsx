@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { API_URL, getDataset, getDatasetPreview, queryDataset } from "../api/datasets"
 import type { DataColumn, DataRow, Dataset } from "../types/dataset"
 
-type DetailTab = "overview" | "query" | "api"
+type DetailTab = "overview" | "api" | "query"
 type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains"
 
 interface QueryFilter {
@@ -72,8 +72,8 @@ function DatasetDetailPage() {
 
       <div className="detail-tabs" role="tablist" aria-label="Dataset detail sections">
         <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
-        <TabButton active={activeTab === "query"} onClick={() => setActiveTab("query")}>Query</TabButton>
         <TabButton active={activeTab === "api"} onClick={() => setActiveTab("api")}>API</TabButton>
+        <TabButton active={activeTab === "query"} onClick={() => setActiveTab("query")}>Query</TabButton>
       </div>
 
       {activeTab === "overview" ? (

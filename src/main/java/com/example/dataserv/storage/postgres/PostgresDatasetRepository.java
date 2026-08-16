@@ -4,8 +4,12 @@ import com.example.dataserv.domain.*;
 import com.example.dataserv.storage.DatasetRepository;
 import org.postgresql.PGConnection;
 import org.postgresql.copy.CopyManager;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.ServerErrorMessage;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+
+import com.example.dataserv.storage.DatasetLoadException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -133,11 +137,13 @@ public class PostgresDatasetRepository implements DatasetRepository {
                     throw new CopyDataException("Failed to copy data into table " + tableName, e);
                 }
             });
+
         } catch (CopyDataException e) {
-            // catch and rethrow with more specific error
             Throwable cause = e.getCause();
+            if (cause instanceof PSQLException psqlException) {
+                throw new DatasetLoadException(describeServerError(tableName, psqlException), psqlException);
+            }
             if (cause instanceof SQLException sqlException) {
-                // TODO: why not just leave this to the bottom throw SQLException (with more detail)?
                 throw sqlException;
             }
             if (cause instanceof IOException ioException) {
@@ -147,6 +153,18 @@ public class PostgresDatasetRepository implements DatasetRepository {
         } catch (RuntimeException e) {
             throw new SQLException("Failed to copy data into table " + tableName, e);
         }
+    }
+
+    private String describeServerError(String tableName, PSQLException e) {
+        ServerErrorMessage server = e.getServerErrorMessage();
+        if (server == null) {
+            return "Failed to load data into " + tableName + ": " + e.getMessage();
+        }
+
+        String detail = server.getMessage();
+        String where = server.getWhere();
+
+        return where != null ? detail + " (" + where + ")" : detail;
     }
 
     private String buildColumnList(DatasetSchema schema) {

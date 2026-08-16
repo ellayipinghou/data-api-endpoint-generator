@@ -44,4 +44,5 @@ export interface DatasetPreviewResponse {
     sampleRows: DataRow[]
     issues: PreviewIssue[]
     canSubmit: boolean
+    columnTypeOptions: Record<string, DataType[]>
 }

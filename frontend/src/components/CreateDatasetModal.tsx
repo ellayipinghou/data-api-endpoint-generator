@@ -1,48 +1,7 @@
-// interface Props {
-//   onClose: () => void
-// }
-
-// function CreateDatasetModal({ onClose }: Props) {
-//   return (
-//     <div className="modal-backdrop">
-//       <div className="modal-panel">
-//         <div className="modal-header">
-//           <h2>Create Dataset</h2>
-//           <button className="close-button" onClick={onClose} aria-label="Close">
-//             ×
-//           </button>
-//         </div>
-
-//         <div className="modal-body">
-//           <p>This is the CSV upload modal (Phase 2 will wire the upload/preview API).</p>
-
-//           <div style={{ marginTop: 18 }}>
-//             <label className="primary-button" style={{ cursor: "pointer" }}>
-//               Choose File
-//               <input type="file" accept=".csv" style={{ display: "none" }} />
-//             </label>
-//           </div>
-//         </div>
-
-//         <div className="modal-footer">
-//           <button onClick={onClose} className="secondary-button">
-//             Cancel
-//           </button>
-//           <button className="primary-button" disabled>
-//             Continue
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
-
-// export default CreateDatasetModal
-
-
 import { useState } from "react"
 import { previewDataset, createDatasetFromPreview } from "../api/datasets"
-import type { DatasetPreviewResponse } from "../types/dataset"
+import type { DataType, DatasetPreviewResponse } from "../types/dataset"
+import { useToast } from "../context/ToastContext"
 
 interface Props {
   onClose: () => void
@@ -52,11 +11,13 @@ interface Props {
 type Step = "select" | "previewing" | "preview" | "naming" | "creating"
 
 function CreateDatasetModal({ onClose, onCreated }: Props) {
+  const { showError } = useToast()
   const [step, setStep] = useState<Step>("select")
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<DatasetPreviewResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [datasetName, setDatasetName] = useState("")
+  const [typeOverrides, setTypeOverrides] = useState<Record<string, DataType>>({})
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null
@@ -73,6 +34,7 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
     try {
       const result = await previewDataset(file)
       setPreview(result)
+      setTypeOverrides({})
       setStep("preview")
     } catch {
       setError("Failed to preview that file. Check that it's a valid CSV and try again.")
@@ -83,8 +45,21 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
   function handleChooseDifferentFile() {
     setFile(null)
     setPreview(null)
+    setTypeOverrides({})
     setError(null)
     setStep("select")
+  }
+
+  function handleTypeChange(columnName: string, newType: DataType) {
+    setTypeOverrides((prev) => {
+      // if it matches the originally inferred type, no need to send an override at all
+      const inferred = preview?.schema.columns.find((c) => c.name === columnName)?.type
+      if (newType === inferred) {
+        const { [columnName]: _removed, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [columnName]: newType }
+    })
   }
 
   async function handleCreate() {
@@ -94,11 +69,13 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
     setError(null)
 
     try {
-      await createDatasetFromPreview(datasetName.trim(), preview.previewId)
+      await createDatasetFromPreview(datasetName.trim(), preview.previewId, typeOverrides)
       onCreated?.()
       onClose()
-    } catch {
-      setError("Failed to create the dataset. Please try again.")
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to create the dataset. Please try again."
+      setError("Failed to create the dataset" + message)
+      showError("Failed to create the dataset" + message)
       setStep("naming")
     }
   }
@@ -165,7 +142,7 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
                     Fix your CSV and reupload before continuing
                   </p>
                   <p style={{ marginBottom: 8 }}>
-                    This file can't be submitted until every issue below is resolved.
+                    This file can't be submitted until every issue below is resolved:
                   </p>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
                     {blockingIssues.map((issue, i) => (
@@ -193,7 +170,7 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
                     Non-blocking warnings
                   </p>
                   <p style={{ marginBottom: 8 }}>
-                    You can still create this dataset, but you may want to double check these first.
+                    You can still create this dataset, but you may want to double check these first:
                   </p>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
                     {warningIssues.map((issue, i) => (
@@ -208,12 +185,31 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
 
               <div className="schema-preview" style={{ marginTop: 16 }}>
                 <h3>Detected columns</h3>
-                {preview.schema.columns.map((col) => (
-                  <div className="schema-preview-row" key={col.name}>
-                    <span>{col.name}</span>
-                    <span>{col.type}</span>
-                  </div>
-                ))}
+                <p style={{ marginBottom: 8, color: "#5b6472", fontSize: "0.85rem" }}>
+                  Change a column's type if it was detected incorrectly.
+                </p>
+                {preview.schema.columns.map((col) => {
+                  const options = preview.columnTypeOptions[col.name] ?? [col.type]
+                  const currentType = typeOverrides[col.name] ?? col.type
+
+                  return (
+                    <div className="schema-preview-row" key={col.name}>
+                      <span>{col.name}</span>
+                      <select
+                        value={currentType}
+                        onChange={(e) => handleTypeChange(col.name, e.target.value as DataType)}
+                        disabled={step === "creating"}
+                        style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #d7dee8" }}
+                      >
+                        {options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })}
               </div>
 
               <div className="schema-preview" style={{ maxHeight: 220, overflow: "auto" }}>

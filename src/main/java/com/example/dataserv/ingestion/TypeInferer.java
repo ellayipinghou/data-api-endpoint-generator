@@ -4,10 +4,28 @@ import com.example.dataserv.domain.DataType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 public class TypeInferer {
     public static DataType inferType(List<String> values) {
+        // "compatible with any type" (empty) defaults to string
+        boolean hasValue = values.stream().anyMatch(v -> v != null && !v.isBlank());
+        if (!hasValue) {
+            return DataType.STRING;
+        }
+        Set<DataType> candidates = validRetypeCandidates(values);
+        return pickHighestPriority(candidates);
+    }
+
+    /**
+     * Returns every DataType that these values could be safely reinterpreted
+     * as. STRING is always included, since any value can be stored as text.
+     * If there are no non-blank values, every type is considered valid since
+     * there is nothing to contradict any of them.
+     */
+    public static Set<DataType> validRetypeCandidates(List<String> values) {
         boolean canBeInteger = true;
         boolean canBeLong = true;
         boolean canBeDouble = true;
@@ -18,11 +36,6 @@ public class TypeInferer {
         boolean foundValue = false;
 
         for (String value : values) {
-            /*
-             * Treat empty values as compatible with any type.
-             * We don't want one missing value to force an entire
-             * column to STRING.
-             */
             if (value == null || value.isBlank()) {
                 continue;
             }
@@ -37,26 +50,30 @@ public class TypeInferer {
             if (!canParseDatetime(value)) canBeDatetime = false;
         }
 
-        // If the column has no non-empty values, default to STRING
-        if (!foundValue) return DataType.STRING;
+        if (!foundValue) {
+            return EnumSet.allOf(DataType.class);
+        }
 
-        /*
-         * Check more specific types before more general types
-         *
-         * For example, "20" can technically be parsed as a Double,
-         * but we want INTEGER
-         */
-        if (canBeInteger) return DataType.INTEGER;
-        if (canBeLong) return DataType.LONG;
-        if (canBeDouble) return DataType.DOUBLE;
-        if (canBeBoolean) return DataType.BOOLEAN;
-        if (canBeDate) return DataType.DATE;
-        if (canBeDatetime) return DataType.DATETIME;
+        Set<DataType> candidates = EnumSet.of(DataType.STRING);
+        if (canBeInteger) candidates.add(DataType.INTEGER);
+        if (canBeLong) candidates.add(DataType.LONG);
+        if (canBeDouble) candidates.add(DataType.DOUBLE);
+        if (canBeBoolean) candidates.add(DataType.BOOLEAN);
+        if (canBeDate) candidates.add(DataType.DATE);
+        if (canBeDatetime) candidates.add(DataType.DATETIME);
+        return candidates;
+    }
 
-        /*
-         * If values don't consistently match a known type,
-         * treat the column as STRING.
-         */
+    private static DataType pickHighestPriority(Set<DataType> candidates) {
+        // Check more specific types before more general types.
+        // For example, "20" can technically be parsed as a Double,
+        // but we want INTEGER.
+        if (candidates.contains(DataType.INTEGER)) return DataType.INTEGER;
+        if (candidates.contains(DataType.LONG)) return DataType.LONG;
+        if (candidates.contains(DataType.DOUBLE)) return DataType.DOUBLE;
+        if (candidates.contains(DataType.BOOLEAN)) return DataType.BOOLEAN;
+        if (candidates.contains(DataType.DATE)) return DataType.DATE;
+        if (candidates.contains(DataType.DATETIME)) return DataType.DATETIME;
         return DataType.STRING;
     }
 

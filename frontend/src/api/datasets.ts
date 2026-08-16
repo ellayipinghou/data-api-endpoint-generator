@@ -30,16 +30,18 @@ export async function previewDataset(file: File): Promise<DatasetPreviewResponse
 
 export async function createDatasetFromPreview(
   name: string,
-  previewId: string
+  previewId: string,
+  typeOverrides: Record<string, string> = {}
 ): Promise<Dataset> {
-  const params = new URLSearchParams({ name, previewId })
-
-  const response = await fetch(`${API_URL}/datasets/from-preview?${params.toString()}`, {
+  const response = await fetch(`${API_URL}/datasets/from-preview`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, previewId, typeOverrides }),
   })
 
   if (!response.ok) {
-    throw new Error("Failed to create dataset")
+    const message = await response.text().catch(() => null)
+    throw new Error(message || "Failed to create dataset")
   }
 
   return response.json()
@@ -77,4 +79,14 @@ export async function queryDataset(id: string, params: URLSearchParams): Promise
   }
 
   return response.json()
+}
+
+export async function deleteDataset(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/datasets/${id}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    throw new Error("Failed to delete dataset")
+  }
 }

@@ -24,7 +24,7 @@ public final class SchemaValidationHelper {
             issues.add(new PreviewIssue(
                 PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
                 null,
-                "The first row looks like data, not a header"
+                "The first row may be data, not a header"
             ));
         }
 
@@ -56,7 +56,7 @@ public final class SchemaValidationHelper {
     }
 
     public static boolean checkCanSubmit(List<PreviewIssue> issues) {
-        return issues.stream().noneMatch(element -> element.getKind().isBlocking());
+        return issues.stream().noneMatch(element -> element.isBlocking());
     }
 
     private static boolean hasHeaderSuspectedDataRow(DatasetSchema schema) {

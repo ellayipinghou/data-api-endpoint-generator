@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useParams } from "react-router-dom"
-import { API_URL, getDataset, getDatasetPreview, queryDataset } from "../api/datasets"
+import { Link, useNavigate, useParams } from "react-router-dom"
+import { API_URL, deleteDataset, getDataset, getDatasetPreview, queryDataset } from "../api/datasets"
 import type { DataColumn, DataRow, Dataset } from "../types/dataset"
+import DeleteConfirmModal from "../components/DeleteConfirmModal"
+import { useToast } from "../context/ToastContext"
 
 type DetailTab = "overview" | "api" | "query"
 type FilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains"
@@ -24,13 +26,18 @@ const operatorConfig: Record<string, { value: FilterOperator; label: string }> =
 }
 
 function DatasetDetailPage() {
+  const { showError } = useToast()
   const { id } = useParams()
+  const navigate = useNavigate()
   const datasetId = id ?? ""
   const [dataset, setDataset] = useState<Dataset | null>(null)
   const [previewRows, setPreviewRows] = useState<DataRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<DetailTab>("overview")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     getDataset(datasetId)
@@ -44,6 +51,24 @@ function DatasetDetailPage() {
       .catch((requestError: Error) => setError(requestError.message))
       .finally(() => setLoading(false))
   }, [datasetId])
+
+  async function handleConfirmDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deleteDataset(datasetId)
+      navigate("/datasets")
+    } catch (requestError) {
+        const message = requestError instanceof Error
+          ? requestError.message
+          : "Failed to delete the dataset."
+
+      setDeleteError("Failed to delete the dataset:" + message)
+      showError("Failed to delete the dataset:" + message)
+      setDeleting(false)
+    }
+  }
 
   if (loading) {
     return <div className="empty-panel"><p>Loading dataset...</p></div>
@@ -67,7 +92,10 @@ function DatasetDetailPage() {
           <h1>{dataset.name}</h1>
           <p className="subtitle">Explore the dataset and its query API.</p>
         </div>
-        <Link to="/datasets" className="secondary-button">Back to datasets</Link>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button className="secondary-button delete-dataset-button" onClick={() => setShowDeleteConfirm(true)}>Delete dataset</button>
+          <Link to="/datasets" className="secondary-button">Back to datasets</Link>
+        </div>
       </div>
 
       <div className="detail-tabs" role="tablist" aria-label="Dataset detail sections">
@@ -82,6 +110,19 @@ function DatasetDetailPage() {
         <QueryTab dataset={dataset} />
       ) : (
         <ApiTab dataset={dataset} />
+      )}
+
+      {showDeleteConfirm && (
+        <DeleteConfirmModal
+          datasetName={dataset.name}
+          deleting={deleting}
+          error={deleteError}
+          onCancel={() => {
+            setShowDeleteConfirm(false)
+            setDeleteError(null)
+          }}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </div>
   )
@@ -136,6 +177,7 @@ function formatCell(value: unknown) {
 }
 
 function QueryTab({ dataset }: { dataset: Dataset }) {
+  const { showError } = useToast()
   const firstColumn = dataset.schema.columns[0]?.name ?? ""
   const [filters, setFilters] = useState<QueryFilter[]>([])
   const [sortColumn, setSortColumn] = useState("")
@@ -168,7 +210,9 @@ function QueryTab({ dataset }: { dataset: Dataset }) {
     try {
       setResults(await queryDataset(dataset.id, params))
     } catch (requestError) {
-      setQueryError(requestError instanceof Error ? requestError.message : "Failed to run query")
+      const message = requestError instanceof Error ? requestError.message : "Failed to run query"
+      setQueryError("Failed to run the query" + message)
+      showError("Failed to run the query" + message)
     } finally {
       setRunning(false)
     }

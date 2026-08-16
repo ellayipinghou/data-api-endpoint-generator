@@ -1,6 +1,8 @@
 package com.example.dataserv.application;
 
 import com.example.dataserv.api.DatasetValidationException;
+import com.example.dataserv.api.InvalidTypeOverrideException;
+import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.Dataset;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+
+import java.util.Map;
 
 /**
  * Integration-style tests for the preview -> create flow: CSV parsing,
@@ -117,7 +121,7 @@ class DatasetServicePreviewTests {
 
         DatasetValidationException ex = assertThrows(
             DatasetValidationException.class,
-            () -> service.createDatasetFromPreview("invalid", preview.getPreviewId())
+            () -> service.createDatasetFromPreview("invalid", preview.getPreviewId(), Map.of())
         );
 
         assertTrue(ex.getMessage().contains("validation"));
@@ -133,7 +137,7 @@ class DatasetServicePreviewTests {
         );
 
         var preview = service.previewDataset(file);
-        Dataset created = service.createDatasetFromPreview("from-preview", preview.getPreviewId());
+        Dataset created = service.createDatasetFromPreview("from-preview", preview.getPreviewId(), Map.of());
 
         assertNotNull(created);
         assertEquals("from-preview", created.getName());
@@ -153,7 +157,7 @@ class DatasetServicePreviewTests {
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> service.createDatasetFromPreview("nope", unknownId)
+            () -> service.createDatasetFromPreview("nope", unknownId, Map.of())
         );
 
         assertTrue(ex.getMessage().contains("not found"));
@@ -184,10 +188,54 @@ class DatasetServicePreviewTests {
 
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> service.createDatasetFromPreview("expired", preview.getPreviewId())
+            () -> service.createDatasetFromPreview("expired", preview.getPreviewId(), Map.of())
         );
 
         assertTrue(ex.getMessage().contains("expired"));
         assertFalse(storage.exists(preview.getPreviewId()));
+    }
+
+    @Test
+    void createDatasetFromPreviewAppliesValidTypeOverride() throws Exception {
+        DatasetRepository repository = mock(DatasetRepository.class);
+        DatasetService service = new DatasetService(repository);
+
+        // "age" values are all valid integers, so STRING is a safe (if unusual) retype candidate
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
+        );
+
+        var preview = service.previewDataset(file);
+        Dataset created = service.createDatasetFromPreview(
+            "with-override", preview.getPreviewId(), Map.of("age", DataType.STRING)
+        );
+
+        var ageColumn = created.getSchema().getColumns().stream()
+            .filter(c -> c.getName().equals("age"))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(DataType.STRING, ageColumn.getType());
+    }
+
+    @Test
+    void createDatasetFromPreviewRejectsOverrideOutsideSampledCandidates() throws Exception {
+        DatasetRepository repository = mock(DatasetRepository.class);
+        DatasetService service = new DatasetService(repository);
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
+        );
+
+        var preview = service.previewDataset(file);
+
+        InvalidTypeOverrideException ex = assertThrows(
+            InvalidTypeOverrideException.class,
+            () -> service.createDatasetFromPreview(
+                "bad-override", preview.getPreviewId(), Map.of("age", DataType.DATE) // can't override age col with date because values don't support
+            )
+        );
+
+        assertTrue(ex.getMessage().contains("age"));
     }
 }

@@ -93,6 +93,25 @@ class CsvDatasetParserTests {
     }
 
     @Test
+    void trimsWhitespaceFromValuesBeforeTypeInference() throws Exception {
+        String csv = "flag\ntrue, false\n true,true\nfalse, true\n";
+
+        DatasetSchema schema = parser.parseSchema(input(csv));
+
+        assertEquals(DataType.BOOLEAN, schema.getColumns().get(0).getType());
+    }
+
+    @Test
+    void trimsWhitespaceFromHeaderNames() throws Exception {
+        String csv = " name , age \nAlice,25\n";
+
+        DatasetSchema schema = parser.parseSchema(input(csv));
+
+        assertEquals("name", schema.getColumns().get(0).getName());
+        assertEquals("age", schema.getColumns().get(1).getName());
+    }
+
+    @Test
     void defaultsToStringWhenColumnHasNoNonEmptyValues() throws Exception {
         String csv = "name,age\nAlice,\nBob,\n";
 

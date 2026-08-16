@@ -16,21 +16,17 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.Map;
+
 
 public class CsvDatasetParser implements DatasetParser {
 
-    private static final int INFERENCE_SAMPLE_SIZE = 100;
+    static final int INFERENCE_SAMPLE_SIZE = 100;
     static final int PREVIEW_SAMPLE_SIZE = 10;
 
-    /**
-     * Single-pass parse: reads the header once and reads up to
-     * max(INFERENCE_SAMPLE_SIZE, PREVIEW_SAMPLE_SIZE) rows once, using
-     * them both for type inference and as the preview sample. Callers
-     * needing only the schema can use {@link #parseSchema}; callers
-     * needing schema + preview rows should use this method instead of
-     * re-parsing the input themselves.
-     */
     public CsvParseResult parse(InputStream input) throws IOException {
         Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8);
 
@@ -44,23 +40,22 @@ public class CsvDatasetParser implements DatasetParser {
             CSVRecord headerRecord = records.next();
             List<String> headers = new ArrayList<>();
             for (int i = 0; i < headerRecord.size(); i++) {
-                headers.add(headerRecord.get(i));
+                String h = headerRecord.get(i);
+                headers.add(h == null ? null : h.trim());
             }
 
-            // Read enough rows to cover both type inference and the preview
-            // sample in one pass; each consumer below just takes the slice
-            // it needs from this single list.
             int readSize = Math.max(INFERENCE_SAMPLE_SIZE, PREVIEW_SAMPLE_SIZE);
             List<CSVRecord> sampleRecords = readSample(records, readSize);
 
-            List<DataColumn> columns = inferColumns(headers, sampleRecords);
+            Map<String, List<DataType>> typeOptions = new LinkedHashMap<>();
+            List<DataColumn> columns = inferColumns(headers, sampleRecords, typeOptions);
             DatasetSchema schema = new DatasetSchema(columns);
 
             List<CSVRecord> previewRows = sampleRecords.size() > PREVIEW_SAMPLE_SIZE
                     ? sampleRecords.subList(0, PREVIEW_SAMPLE_SIZE)
                     : sampleRecords;
 
-            return new CsvParseResult(schema, headers, previewRows);
+            return new CsvParseResult(schema, headers, previewRows, typeOptions);
         }
     }
 
@@ -69,7 +64,7 @@ public class CsvDatasetParser implements DatasetParser {
         return parse(input).schema();
     }
 
-    private List<DataColumn> inferColumns(List<String> headers, List<CSVRecord> sampleRecords) {
+    private List<DataColumn> inferColumns(List<String> headers, List<CSVRecord> sampleRecords, Map<String, List<DataType>> typeOptionsOut) {
         List<DataColumn> columns = new ArrayList<>();
 
         for (int i = 0; i < headers.size(); i++) {
@@ -77,17 +72,14 @@ public class CsvDatasetParser implements DatasetParser {
             List<String> values = new ArrayList<>();
 
             for (CSVRecord record : sampleRecords) {
-                String v = null;
-                try {
-                    v = record.get(i);
-                } catch (RuntimeException ignored) {
-                    // missing value for this row/column -> null
-                }
-                values.add(v);
+                values.add(cellValue(record, i));
             }
 
+            Set<DataType> candidates = TypeInferer.validRetypeCandidates(values);
             DataType type = TypeInferer.inferType(values);
+
             columns.add(new DataColumn(header, type));
+            typeOptionsOut.put(header, List.copyOf(candidates));
         }
 
         return columns;
@@ -101,5 +93,14 @@ public class CsvDatasetParser implements DatasetParser {
         }
 
         return sampleRecords;
+    }
+
+    public static String cellValue(CSVRecord record, int index) {
+        try {
+            String v = record.get(index);
+            return v == null ? null : v.trim();
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

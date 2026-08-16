@@ -1,4 +1,4 @@
-name,age,user_id,birthday,active,birthday,created_at
+name,age,user_id,birthday ,active,birthday,created_at
 Alice Johnson,25,10000000001,92.5,true,1999-04-12,2026-01-15T09:30:00
 Bob Smith,30,10000000002,87.2,false,1995-08-23,2026-01-16T14:45:00
 Charlie Brown,35,10000000003,95.8,true,1990-11-05,2026-01-17T11:15:00

@@ -25,22 +25,11 @@ function AppShell({ children }: AppShellProps) {
           >
             Datasets
           </NavLink>
-          <CreateButton />
         </nav>
       </aside>
 
       <main className="content-panel">{children}</main>
     </div>
-  )
-}
-
-function CreateButton() {
-  const { open } = useCreateModal()
-
-  return (
-    <button onClick={() => open()} className="nav-link" style={{ textAlign: "left" }}>
-      Create Dataset
-    </button>
   )
 }
 

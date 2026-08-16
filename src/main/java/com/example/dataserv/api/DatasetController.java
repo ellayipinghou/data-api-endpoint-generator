@@ -2,6 +2,7 @@ package com.example.dataserv.api;
 
 import com.example.dataserv.application.DatasetService;
 import com.example.dataserv.domain.DataRow;
+import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.Dataset;
 import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.domain.Filter;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
@@ -42,9 +44,18 @@ public class DatasetController {
         return ResponseEntity.ok(dataset);
     }
 
+    // @PostMapping("/from-preview")
+    // public ResponseEntity<Dataset> createDatasetFromPreview(@RequestParam String name, @RequestParam UUID previewId) throws IOException, SQLException {
+    //     Dataset dataset = service.createDatasetFromPreview(name, previewId);
+    //     return ResponseEntity.ok(dataset);
+    // }
+    public record CreateFromPreviewRequest(String name, UUID previewId, Map<String, DataType> typeOverrides) {}
+
     @PostMapping("/from-preview")
-    public ResponseEntity<Dataset> createDatasetFromPreview(@RequestParam String name, @RequestParam UUID previewId) throws IOException, SQLException {
-        Dataset dataset = service.createDatasetFromPreview(name, previewId);
+    public ResponseEntity<Dataset> createDatasetFromPreview(@RequestBody CreateFromPreviewRequest request) throws IOException, SQLException {
+        Dataset dataset = service.createDatasetFromPreview(
+            request.name(), request.previewId(), request.typeOverrides()
+        );
         return ResponseEntity.ok(dataset);
     }
 

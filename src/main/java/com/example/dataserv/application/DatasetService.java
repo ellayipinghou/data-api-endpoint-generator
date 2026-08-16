@@ -1,6 +1,8 @@
 package com.example.dataserv.application;
 
+import com.example.dataserv.api.DatasetPreviewResponse;
 import com.example.dataserv.api.DatasetValidationException;
+import com.example.dataserv.api.InvalidTypeOverrideException;
 import com.example.dataserv.api.PreviewIssue;
 import com.example.dataserv.domain.DataColumn;
 import com.example.dataserv.domain.DataType;
@@ -41,7 +43,7 @@ public class DatasetService {
         this.repository = repository;
     }
 
-    public com.example.dataserv.api.DatasetPreviewResponse previewDataset(MultipartFile file) throws IOException {
+    public DatasetPreviewResponse previewDataset(MultipartFile file) throws IOException {
         byte[] content = file.getBytes();
         CsvParseResult parsed = new CsvDatasetParser().parse(new ByteArrayInputStream(content));
         DatasetSchema schema = parsed.schema();
@@ -55,13 +57,7 @@ public class DatasetService {
         for (CSVRecord record : parsed.previewRows()) {
             Map<String, Object> values = new HashMap<>();
             for (int i = 0; i < headers.size(); i++) {
-                String value;
-                try {
-                    value = record.get(i);
-                } catch (RuntimeException e) {
-                    value = null;
-                }
-                values.put(headers.get(i), value);
+                values.put(headers.get(i), CsvDatasetParser.cellValue(record, i));
             }
             sampleRows.add(new DataRow(values));
         }
@@ -69,18 +65,20 @@ public class DatasetService {
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
         boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
-        return new com.example.dataserv.api.DatasetPreviewResponse(
-                previewId, schema, sampleRows, issues, canSubmit
+        return new DatasetPreviewResponse(
+                previewId, schema, sampleRows, issues, canSubmit, parsed.typeOptions()
         );
     }
 
-    public Dataset createDatasetFromPreview(String name, UUID previewId) throws IOException, SQLException {
+    @Transactional(rollbackFor = Exception.class)
+    public Dataset createDatasetFromPreview(
+        String name, UUID previewId, Map<String, DataType> typeOverrides
+    ) throws IOException, SQLException {
         PreviewStorage previewStorage = new PreviewStorage();
 
         if (!previewStorage.exists(previewId)) {
             throw new IllegalArgumentException("Preview not found: " + previewId);
         }
-
         if (previewStorage.isExpired(previewId, PreviewStorage.DEFAULT_TTL)) {
             previewStorage.delete(previewId);
             throw new IllegalArgumentException("Preview expired: " + previewId);
@@ -91,7 +89,9 @@ public class DatasetService {
             previewBytes = input.readAllBytes();
         }
 
-        DatasetSchema schema = new CsvDatasetParser().parseSchema(new ByteArrayInputStream(previewBytes));
+        // full parse (not just parseSchema) so we get typeOptions to validate overrides against
+        CsvParseResult parsed = new CsvDatasetParser().parse(new ByteArrayInputStream(previewBytes));
+        DatasetSchema schema = applyTypeOverrides(parsed, typeOverrides);
 
         Dataset dataset;
         try (InputStream input = new ByteArrayInputStream(previewBytes)) {
@@ -100,6 +100,31 @@ public class DatasetService {
 
         previewStorage.delete(previewId);
         return dataset;
+    }
+
+    private DatasetSchema applyTypeOverrides(CsvParseResult parsed, Map<String, DataType> typeOverrides) {
+        if (typeOverrides == null || typeOverrides.isEmpty()) {
+            return parsed.schema();
+        }
+
+        List<DataColumn> result = new ArrayList<>();
+        for (DataColumn column : parsed.schema().getColumns()) {
+            DataType override = typeOverrides.get(column.getName());
+            if (override == null) {
+                result.add(column);
+                continue;
+            }
+
+            List<DataType> allowed = parsed.typeOptions().getOrDefault(column.getName(), List.of());
+            if (!allowed.contains(override)) {
+                throw new InvalidTypeOverrideException(
+                    "Column '" + column.getName() + "' cannot be retyped to " + override
+                        + "; sampled values only support " + allowed
+                );
+            }
+            result.add(new DataColumn(column.getName(), override));
+        }
+        return new DatasetSchema(result);
     }
 
     @Transactional(rollbackFor = Exception.class)

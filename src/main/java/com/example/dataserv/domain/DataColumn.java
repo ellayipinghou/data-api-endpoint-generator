@@ -6,7 +6,7 @@ import java.util.List;
 public class DataColumn {
     private final String name;
     private final DataType type;
-    private static List<String> operators;
+    private final List<String> operators;
 
     // TODO: potentially add constraints
 

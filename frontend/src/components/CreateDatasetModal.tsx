@@ -74,8 +74,8 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
       onClose()
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to create the dataset. Please try again."
-      setError("Failed to create the dataset" + message)
-      showError("Failed to create the dataset" + message)
+      setError("Failed to create the dataset: " + message)
+      showError("Failed to create the dataset: " + message)
       setStep("naming")
     }
   }

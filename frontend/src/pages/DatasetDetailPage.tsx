@@ -64,8 +64,8 @@ function DatasetDetailPage() {
           ? requestError.message
           : "Failed to delete the dataset."
 
-      setDeleteError("Failed to delete the dataset:" + message)
-      showError("Failed to delete the dataset:" + message)
+      setDeleteError("Failed to delete the dataset: " + message)
+      showError("Failed to delete the dataset: " + message)
       setDeleting(false)
     }
   }
@@ -211,8 +211,8 @@ function QueryTab({ dataset }: { dataset: Dataset }) {
       setResults(await queryDataset(dataset.id, params))
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "Failed to run query"
-      setQueryError("Failed to run the query" + message)
-      showError("Failed to run the query" + message)
+      setQueryError("Failed to run the query: " + message)
+      showError("Failed to run the query: " + message)
     } finally {
       setRunning(false)
     }

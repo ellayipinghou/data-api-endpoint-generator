@@ -785,7 +785,7 @@ button,
 }
 
 .delete-dataset-button {
-  background: rgb(198, 14, 14);
+  background: #811b1b;
 }
 
 .toast-banner {
@@ -799,7 +799,7 @@ button,
   justify-content: space-between;
   gap: 16px;
   padding: 14px 20px;
-  background: #7f1d1d;
+  background: #811b1b;
   color: #fecaca;
   font-weight: 600;
   box-shadow: var(--shadow);

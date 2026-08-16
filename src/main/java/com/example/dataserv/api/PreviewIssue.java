@@ -1,5 +1,7 @@
 package com.example.dataserv.api;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class PreviewIssue {
     private final PreviewIssueKind kind;
     private final String column;
@@ -13,6 +15,15 @@ public class PreviewIssue {
 
     public PreviewIssueKind getKind() {
         return kind;
+    }
+
+    @JsonProperty("isBlocking")
+    public boolean isBlocking() {
+        return kind.isBlocking();
+    }
+
+    public String getColumn() {
+        return column;
     }
 
     public String getMessage() {

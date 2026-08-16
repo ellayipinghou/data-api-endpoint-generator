@@ -149,6 +149,63 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
                 </button>
               </div>
 
+              {blockingIssues.length > 0 && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 16,
+                    padding: "12px 14px",
+                    borderRadius: 8,
+                    background: "#fef9c3",
+                    border: "1px solid #eab308",
+                    color: "#713f12",
+                  }}
+                >
+                  <p style={{ fontWeight: 600, marginBottom: 6 }}>
+                    Fix your CSV and reupload before continuing
+                  </p>
+                  <p style={{ marginBottom: 8 }}>
+                    This file can't be submitted until every issue below is resolved.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {blockingIssues.map((issue, i) => (
+                      <li key={`b-${i}`}>
+                        {issue.column ? <strong>{issue.column}: </strong> : null}
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {warningIssues.length > 0 && (
+                <div
+                  style={{
+                    marginTop: blockingIssues.length > 0 ? 10 : 16,
+                    padding: "12px 14px",
+                    borderRadius: 8,
+                    background: "#fefce8",
+                    border: "1px solid #fde68a",
+                    color: "#713f12",
+                  }}
+                >
+                  <p style={{ fontWeight: 600, marginBottom: 6 }}>
+                    Non-blocking warnings
+                  </p>
+                  <p style={{ marginBottom: 8 }}>
+                    You can still create this dataset, but you may want to double check these first.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {warningIssues.map((issue, i) => (
+                      <li key={`w-${i}`}>
+                        {issue.column ? <strong>{issue.column}: </strong> : null}
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="schema-preview" style={{ marginTop: 16 }}>
                 <h3>Detected columns</h3>
                 {preview.schema.columns.map((col) => (
@@ -158,24 +215,6 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
                   </div>
                 ))}
               </div>
-
-              {(blockingIssues.length > 0 || warningIssues.length > 0) && (
-                <div className="schema-preview">
-                  <h3>Issues</h3>
-                  {blockingIssues.map((issue, i) => (
-                    <div className="schema-preview-row" key={`b-${i}`} style={{ color: "#b91c1c" }}>
-                      <span>{issue.column ?? "File"}</span>
-                      <span>{issue.message}</span>
-                    </div>
-                  ))}
-                  {warningIssues.map((issue, i) => (
-                    <div className="schema-preview-row muted" key={`w-${i}`}>
-                      <span>{issue.column ?? "File"}</span>
-                      <span>{issue.message}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               <div className="schema-preview" style={{ maxHeight: 220, overflow: "auto" }}>
                 <h3>Sample rows</h3>

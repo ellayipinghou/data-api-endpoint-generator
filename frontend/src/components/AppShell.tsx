@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
-import { useCreateModal } from "../context/CreateModalContext"
 
 interface AppShellProps {
   children: ReactNode
@@ -16,6 +15,7 @@ function AppShell({ children }: AppShellProps) {
             <div className="brand-name">DataServ</div>
           </div>
         </div>
+        // TODO: add datasets list in this sidebar
         <nav className="sidebar-nav" aria-label="Sidebar navigation">
           <NavLink
             to="/datasets"

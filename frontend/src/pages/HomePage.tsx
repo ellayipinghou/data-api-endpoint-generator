@@ -14,15 +14,9 @@ function HomePage() {
     setLoading(true)
     setError(null)
     getDatasets()
-      .then((data) => {
-        setDatasets(data)
-      })
-      .catch(() => {
-        setError("Failed to load datasets")
-      })
-      .finally(() => {
-        setLoading(false)
-      })
+      .then((data) => { setDatasets(data) })
+      .catch(() => { setError("Failed to load datasets") })
+      .finally(() => { setLoading(false) })
   }, [])
 
   useEffect(() => {

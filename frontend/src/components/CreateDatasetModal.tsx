@@ -10,6 +10,8 @@ interface Props {
 
 type Step = "select" | "previewing" | "preview" | "naming" | "creating"
 
+// TODO: make submit button disabled when failed to create until something changes (a new file upload, etc)
+
 function CreateDatasetModal({ onClose, onCreated }: Props) {
   const { showError } = useToast()
   const [step, setStep] = useState<Step>("select")
@@ -52,12 +54,14 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
 
   function handleTypeChange(columnName: string, newType: DataType) {
     setTypeOverrides((prev) => {
-      // if it matches the originally inferred type, no need to send an override at all
+      // if it matches the originally inferred type (changed back), no need to send an override at all
       const inferred = preview?.schema.columns.find((c) => c.name === columnName)?.type
       if (newType === inferred) {
+        // extract the property matching columnName and assign its value to a temporary unused variable named _removed, return only the rest
         const { [columnName]: _removed, ...rest } = prev
         return rest
       }
+      // if selected type is different from original inferred type, return new object containing all previous overrides, while adding or updating the specific column key with its newType
       return { ...prev, [columnName]: newType }
     })
   }
@@ -72,10 +76,22 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
       await createDatasetFromPreview(datasetName.trim(), preview.previewId, typeOverrides)
       onCreated?.()
       onClose()
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to create the dataset. Please try again."
-      setError("Failed to create the dataset: " + message)
-      showError("Failed to create the dataset: " + message)
+    } catch (e: any) {
+      // Extract the message string safely whether e is an Error, an object, or a raw string
+      let rawMessage = "Please try again."
+      
+      if (e instanceof Error) {
+        rawMessage = e.message
+      } else if (typeof e === "string") {
+        rawMessage = e
+      } else if (e?.message) {
+        rawMessage = String(e.message)
+      }
+
+      const formattedError = `Failed to create the dataset: ${rawMessage}`
+
+      setError(formattedError)
+      showError(formattedError)
       setStep("naming")
     }
   }

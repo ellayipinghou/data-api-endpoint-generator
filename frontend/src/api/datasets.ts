@@ -2,14 +2,31 @@ import type { DataRow, Dataset, DatasetPreviewResponse } from "../types/dataset"
 
 export const API_URL = "http://localhost:8080"
 
-export async function getDatasets(): Promise<Dataset[]> {
-  const response = await fetch(`${API_URL}/datasets`)
+/**
+ * Shared helper to extract detailed backend error messages or fallback gracefully.
+ */
+async function handleResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  if (response.status === 404) {
+    throw new Error("Dataset not found")
+  }
 
   if (!response.ok) {
-    throw new Error("Failed to fetch datasets")
+    const errorData = await response.json().catch(() => null)
+    const backendMessage = errorData?.message || errorData?.error
+    throw new Error(backendMessage || fallbackMessage)
+  }
+
+  // Handle 204 No Content (e.g., DELETE requests)
+  if (response.status === 204) {
+    return undefined as unknown as T
   }
 
   return response.json()
+}
+
+export async function getDatasets(): Promise<Dataset[]> {
+  const response = await fetch(`${API_URL}/datasets`)
+  return handleResponse<Dataset[]>(response, "Failed to fetch datasets")
 }
 
 export async function previewDataset(file: File): Promise<DatasetPreviewResponse> {
@@ -21,11 +38,7 @@ export async function previewDataset(file: File): Promise<DatasetPreviewResponse
     body: formData,
   })
 
-  if (!response.ok) {
-    throw new Error("Failed to preview dataset")
-  }
-
-  return response.json()
+  return handleResponse<DatasetPreviewResponse>(response, "Failed to preview dataset")
 }
 
 export async function createDatasetFromPreview(
@@ -39,46 +52,22 @@ export async function createDatasetFromPreview(
     body: JSON.stringify({ name, previewId, typeOverrides }),
   })
 
-  if (!response.ok) {
-    const message = await response.text().catch(() => null)
-    throw new Error(message || "Failed to create dataset")
-  }
-
-  return response.json()
+  return handleResponse<Dataset>(response, "Failed to create dataset")
 }
 
 export async function getDataset(id: string): Promise<Dataset> {
   const response = await fetch(`${API_URL}/datasets/${id}`)
-
-  if (response.status === 404) {
-    throw new Error("Dataset not found")
-  }
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch dataset")
-  }
-
-  return response.json()
+  return handleResponse<Dataset>(response, "Failed to fetch dataset")
 }
 
 export async function getDatasetPreview(id: string): Promise<DataRow[]> {
   const response = await fetch(`${API_URL}/datasets/${id}/query?limit=10`)
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch dataset preview")
-  }
-
-  return response.json()
+  return handleResponse<DataRow[]>(response, "Failed to fetch dataset preview")
 }
 
 export async function queryDataset(id: string, params: URLSearchParams): Promise<DataRow[]> {
   const response = await fetch(`${API_URL}/datasets/${id}/query?${params.toString()}`)
-
-  if (!response.ok) {
-    throw new Error("Failed to run query")
-  }
-
-  return response.json()
+  return handleResponse<DataRow[]>(response, "Failed to run query")
 }
 
 export async function deleteDataset(id: string): Promise<void> {
@@ -86,7 +75,5 @@ export async function deleteDataset(id: string): Promise<void> {
     method: "DELETE",
   })
 
-  if (!response.ok) {
-    throw new Error("Failed to delete dataset")
-  }
+  return handleResponse<void>(response, "Failed to delete dataset")
 }

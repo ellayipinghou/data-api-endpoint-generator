@@ -32,6 +32,7 @@ public class DatasetController {
      * =========================
      */
 
+    // TODO: is RequestPart necessary? could just make RequestParam if not planning on adding json to uploads
     @PostMapping("/preview")
     public ResponseEntity<com.example.dataserv.api.DatasetPreviewResponse> previewDataset(@RequestPart MultipartFile file) throws IOException {
         com.example.dataserv.api.DatasetPreviewResponse preview = service.previewDataset(file);
@@ -44,13 +45,7 @@ public class DatasetController {
         return ResponseEntity.ok(dataset);
     }
 
-    // @PostMapping("/from-preview")
-    // public ResponseEntity<Dataset> createDatasetFromPreview(@RequestParam String name, @RequestParam UUID previewId) throws IOException, SQLException {
-    //     Dataset dataset = service.createDatasetFromPreview(name, previewId);
-    //     return ResponseEntity.ok(dataset);
-    // }
     public record CreateFromPreviewRequest(String name, UUID previewId, Map<String, DataType> typeOverrides) {}
-
     @PostMapping("/from-preview")
     public ResponseEntity<Dataset> createDatasetFromPreview(@RequestBody CreateFromPreviewRequest request) throws IOException, SQLException {
         Dataset dataset = service.createDatasetFromPreview(

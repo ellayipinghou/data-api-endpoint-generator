@@ -1,4 +1,3 @@
-
 # Data API Endpoint Generator
 
 A developer tool that turns CSV files into queryable PostgreSQL tables and exposes a generic REST API for filtering, sorting, and retrieving the data.
@@ -34,7 +33,7 @@ PostgreSQL Table Creation
  │
  ▼
 Generic Query API
-````
+```
 
 The application uses PostgreSQL as the source of truth for generated dataset schemas. It performs basic validation before database operations but leaves database-level validation to PostgreSQL.
 
@@ -113,6 +112,8 @@ spring.datasource.username=${DB_USERNAME}
 spring.datasource.password=${DB_PASSWORD}
 ```
 
+Do not commit database credentials to the repository.
+
 ### 4. Start the backend
 
 ```bash
@@ -147,7 +148,17 @@ npm run dev
 
 Previews expire after **30 minutes**. If a preview is missing or expired when creation is attempted, the user must upload the CSV again.
 
-## Query API
+## Using the Application
+
+Each dataset has three tabs:
+
+### Overview
+
+The Overview tab displays the dataset's schema, including column names, data types, and supported query operators. It also provides general information about the dataset.
+
+### API
+
+The API tab provides the dataset's base query endpoint and information needed to access it programmatically.
 
 Datasets are queried through a generic endpoint:
 
@@ -155,13 +166,37 @@ Datasets are queried through a generic endpoint:
 GET /datasets/{id}/query
 ```
 
-Example:
+For example:
+
+```text
+/datasets/123/query
+```
+
+The available columns and operators are based on the actual PostgreSQL table schema.
+
+The endpoint can be used directly by another application or API client to retrieve data.
+
+### Query
+
+The Query tab provides an interactive way to build and test API queries. Users can select filters, comparison operators, sorting, and result limits, then execute the query to see the matching rows directly in the application.
+
+The tab also generates the corresponding API endpoint for the selected query. This allows users to go from:
+
+```text
+Select query parameters
+        ↓
+Preview the results
+        ↓
+Get the corresponding API endpoint
+```
+
+For example, a query configured with an age greater than 30, a score greater than or equal to 90, an active status, and results sorted by score produces:
 
 ```text
 /datasets/123/query?age_gt=30&score_gte=90&active=true&sort=score,desc&limit=5
 ```
 
-The available columns and operators are based on the actual PostgreSQL table schema.
+The generated endpoint can then be used directly by another application or API client to retrieve the same results.
 
 ## Database Design
 

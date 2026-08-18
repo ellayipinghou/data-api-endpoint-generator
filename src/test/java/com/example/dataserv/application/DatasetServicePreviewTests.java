@@ -155,12 +155,12 @@ class DatasetServicePreviewTests {
 
         java.util.UUID unknownId = java.util.UUID.randomUUID();
 
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
+        PreviewMissingException ex = assertThrows(
+            PreviewMissingException.class,
             () -> service.createDatasetFromPreview("nope", unknownId, Map.of())
         );
 
-        assertTrue(ex.getMessage().contains("not found"));
+        assertTrue(ex.getMessage().contains("missing"));
     }
 
     @Test
@@ -186,8 +186,8 @@ class DatasetServicePreviewTests {
             )
         );
 
-        IllegalArgumentException ex = assertThrows(
-            IllegalArgumentException.class,
+        PreviewMissingException ex = assertThrows(
+            PreviewMissingException.class,
             () -> service.createDatasetFromPreview("expired", preview.getPreviewId(), Map.of())
         );
 

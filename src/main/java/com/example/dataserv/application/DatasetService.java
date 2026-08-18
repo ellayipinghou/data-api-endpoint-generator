@@ -77,11 +77,12 @@ public class DatasetService {
         PreviewStorage previewStorage = new PreviewStorage();
 
         if (!previewStorage.exists(previewId)) {
-            throw new IllegalArgumentException("Preview not found: " + previewId);
+            throw new PreviewMissingException();
         }
+
         if (previewStorage.isExpired(previewId, PreviewStorage.DEFAULT_TTL)) {
             previewStorage.delete(previewId);
-            throw new IllegalArgumentException("Preview expired: " + previewId);
+            throw new PreviewMissingException();
         }
 
         byte[] previewBytes;

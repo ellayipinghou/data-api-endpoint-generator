@@ -416,7 +416,6 @@ A named Docker volume is used to persist PostgreSQL data independently of the da
 * Expand query capabilities - add more advanced filtering, as well as pagination and aggregation
 * Improve scalability - stream large CSV files directly from temporary storage to PostgreSQL instead of loading entire files into memory
 * Improve database error handling - translate PostgreSQL errors into clear, actionable messages for users
-Generate richer API documentation - automatically document dataset-specific columns, types, supported operators, and query examples
 * Improve schema inference - handle ambiguous types and more complex column definitions (constraints for example)
 * Support dataset lifecycle management - add replacement, migration, deletion, and export capabilities
 * Package backend as a reusable Java library - allow the API-generation functionality to be embedded directly into existing applications without requiring a separate server

@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Environment/secrets
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md

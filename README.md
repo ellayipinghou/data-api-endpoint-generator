@@ -13,8 +13,26 @@ A developer tool that turns CSV files into queryable PostgreSQL tables and expos
 * Retrieve schema information directly from PostgreSQL
 * Temporarily store uploaded CSVs during the preview/create flow
 * Roll back database changes when dataset creation fails
+* Interactively build and test API queries through the frontend
+* Generate reusable API endpoints from configured queries
+* Run the frontend, backend, and PostgreSQL database together with Docker Compose
 
 ## Architecture
+
+```text
+                         Docker Compose
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+          Frontend          Backend        PostgreSQL
+           React          Spring Boot       Database
+              │               │               │
+              └───────────────┼───────────────┘
+                              │
+                         Dataset API
+````
+
+The dataset workflow is:
 
 ```text
 CSV
@@ -40,8 +58,9 @@ The application uses PostgreSQL as the source of truth for generated dataset sch
 ## Tech Stack
 
 * **Backend:** Java, Spring Boot, Gradle
-* **Frontend:** React, TypeScript
+* **Frontend:** React, TypeScript, Vite
 * **Database:** PostgreSQL
+* **Containerization:** Docker, Docker Compose
 * **Serialization:** Jackson
 
 ## Project Structure
@@ -56,25 +75,99 @@ src/
 │   │       └── infrastructure/
 │   └── resources/
 └── test/
+
+docker/
+└── init.sql
+
+frontend/
+├── src/
+├── Dockerfile
+└── nginx.conf
+
+Dockerfile
+docker-compose.yml
 ```
 
 ## Running Locally
 
-### Prerequisites
+There are two ways to run the application:
 
-* Java 25
-* Gradle
-* PostgreSQL
-* Node.js and npm
+1. **Docker Compose (recommended):** Starts the frontend, Spring Boot backend, and PostgreSQL database together.
+2. **Manual setup:** Runs the frontend and backend directly and connects to a locally installed PostgreSQL instance.
 
-### 1. Clone the repository
+### Option 1: Docker Compose (Recommended)
+
+#### Prerequisites
+
+* Docker Desktop
+
+#### 1. Clone the repository
 
 ```bash
 git clone https://github.com/ellayipinghou/data-api-endpoint-generator.git
 cd data-api-endpoint-generator
 ```
 
-### 2. Set up PostgreSQL
+#### 2. Configure database credentials
+
+Create a `.env` file in the project root:
+
+```text
+DB_USERNAME=postgres
+DB_PASSWORD=your-password
+```
+
+The Docker Compose configuration uses these values to configure both PostgreSQL and the Spring Boot backend.
+
+Do not commit `.env` or database credentials to the repository.
+
+#### 3. Start the application
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+* **Frontend:** `http://localhost:3000`
+* **Backend:** `http://localhost:8080`
+* **PostgreSQL:** `localhost:5432`
+
+The PostgreSQL container automatically creates the `dataserv` database and initializes the `datasets` metadata table using `docker/init.sql`.
+
+PostgreSQL data is stored in a Docker named volume, so datasets persist when the containers are stopped and restarted.
+
+To stop the application:
+
+```bash
+docker compose down
+```
+
+To stop the application and delete the PostgreSQL data volume:
+
+```bash
+docker compose down -v
+```
+
+The `-v` option permanently deletes the stored database data and should only be used when a fresh database is desired.
+
+### Option 2: Run Without Docker
+
+#### Prerequisites
+
+* Java 25
+* Gradle
+* PostgreSQL
+* Node.js and npm
+
+#### 1. Clone the repository
+
+```bash
+git clone https://github.com/ellayipinghou/data-api-endpoint-generator.git
+cd data-api-endpoint-generator
+```
+
+#### 2. Set up PostgreSQL
 
 Create a PostgreSQL database named `dataserv`:
 
@@ -92,7 +185,7 @@ CREATE TABLE datasets (
 );
 ```
 
-### 3. Configure database environment variables
+#### 3. Configure database environment variables
 
 The application reads its PostgreSQL connection details from environment variables.
 
@@ -114,7 +207,7 @@ spring.datasource.password=${DB_PASSWORD}
 
 Do not commit database credentials to the repository.
 
-### 4. Start the backend
+#### 4. Start the backend
 
 ```bash
 ./gradlew bootRun
@@ -126,13 +219,19 @@ On Windows:
 .\gradlew.bat bootRun
 ```
 
-### 5. Start the frontend
+#### 5. Start the frontend
 
 From the frontend directory:
 
 ```bash
 npm install
 npm run dev
+```
+
+The frontend will be available at:
+
+```text
+http://localhost:5173
 ```
 
 ## Dataset Workflow
@@ -150,15 +249,17 @@ Previews expire after **30 minutes**. If a preview is missing or expired when cr
 
 ## Using the Application
 
-Each dataset has three tabs:
+Each dataset has three tabs: **Overview**, **API**, and **Query**.
 
 ### Overview
 
-The Overview tab displays the dataset's schema, including column names, data types, and supported query operators. It also provides general information about the dataset.
+The Overview tab displays information about the dataset, including its schema, column names, data types, and supported query operators.
+
+The schema is retrieved directly from PostgreSQL, which serves as the source of truth for the generated dataset table.
 
 ### API
 
-The API tab provides the dataset's base query endpoint and information needed to access it programmatically.
+The API tab provides the dataset's base query endpoint and information needed to access the dataset programmatically.
 
 Datasets are queried through a generic endpoint:
 
@@ -174,29 +275,67 @@ For example:
 
 The available columns and operators are based on the actual PostgreSQL table schema.
 
-The endpoint can be used directly by another application or API client to retrieve data.
+The endpoint can be used directly by another application or API client to retrieve dataset data.
 
 ### Query
 
-The Query tab provides an interactive way to build and test API queries. Users can select filters, comparison operators, sorting, and result limits, then execute the query to see the matching rows directly in the application.
+The Query tab provides an interactive way to build and test API queries.
 
-The tab also generates the corresponding API endpoint for the selected query. This allows users to go from:
+Users can select filters, comparison operators, sorting, and result limits, then execute the query to see the matching rows directly in the application.
+
+The tab also generates the corresponding API endpoint for the selected query. This allows users to build and validate a query visually before using the resulting endpoint in another application.
+
+The workflow is:
 
 ```text
 Select query parameters
+        ↓
+Execute query
         ↓
 Preview the results
         ↓
 Get the corresponding API endpoint
 ```
 
-For example, a query configured with an age greater than 30, a score greater than or equal to 90, an active status, and results sorted by score produces:
+For example, a query configured with:
+
+* `age > 30`
+* `score >= 90`
+* `active = true`
+* Sort by `score` descending
+* Limit results to 5
+
+produces:
 
 ```text
 /datasets/123/query?age_gt=30&score_gte=90&active=true&sort=score,desc&limit=5
 ```
 
-The generated endpoint can then be used directly by another application or API client to retrieve the same results.
+The generated endpoint can then be copied and used directly by another application or API client to retrieve the same results.
+
+## Query API
+
+The generic query endpoint is:
+
+```text
+GET /datasets/{id}/query
+```
+
+Example:
+
+```text
+/datasets/123/query?age_gt=30&score_gte=90&active=true&sort=score,desc&limit=5
+```
+
+Supported query functionality includes:
+
+* Comparison operators such as `gt`, `gte`, `lt`, and `lte`
+* Equality filtering
+* Boolean filtering
+* Sorting
+* Result limits
+
+The available columns and operators are based on the actual PostgreSQL table schema.
 
 ## Database Design
 
@@ -239,15 +378,44 @@ Commit      Rollback
            Frontend
 ```
 
-## Future Work
+## Docker Architecture
 
-* Dockerize the application with Docker Compose for simpler local setup
-* Stream large CSV files instead of loading entire files into memory
-* Support additional formats such as JSON/JSONL and Parquet
-* Improve type inference and handling of ambiguous data
-* Add more structured and actionable API errors
-* Add dataset replacement, migration, and export functionality
-* Expand query capabilities with pagination and aggregation
-* Generate richer API documentation from dataset schemas
-* Expand integration testing and observability
-* Package the core API functionality as a reusable Java library so it can be embedded directly into existing applications without running a separate server
+The Docker Compose setup runs three services:
+
+```text
+┌───────────────────────────────────────────────┐
+│                 Docker Compose                │
+│                                               │
+│  ┌─────────────┐    ┌─────────────┐           │
+│  │  Frontend   │───▶│   Backend   │           │
+│  │    Nginx    │    │ Spring Boot │           │
+│  │    :3000    │    │    :8080    │           │
+│  └─────────────┘    └──────┬──────┘           │
+│                            │                  │
+│                     ┌──────▼──────┐           │
+│                     │ PostgreSQL  │           │
+│                     │    :5432    │           │
+│                     └──────┬──────┘           │
+│                            │                  │
+│                     postgres-data             │
+│                         volume                │
+└───────────────────────────────────────────────┘
+```
+
+The frontend is built with Vite and served as static files through Nginx. Nginx is configured to support client-side React routing.
+
+The backend runs as a Spring Boot application in its own container.
+
+PostgreSQL runs using the official PostgreSQL Docker image. The `docker/init.sql` script is automatically executed when a new PostgreSQL data directory is initialized.
+
+A named Docker volume is used to persist PostgreSQL data independently of the database container.
+
+## Potential Future Work
+
+* Broaden data sources and formats - support JSON/JSONL, Parquet, and generating APIs from existing database tables
+* Expand query capabilities - add more advanced filtering, as well as pagination and aggregation
+* Improve scalability - stream large CSV files directly from temporary storage to PostgreSQL instead of loading entire files into memory
+* Improve database error handling - translate PostgreSQL errors into clear, actionable messages for users
+* Improve schema inference - handle ambiguous types and more complex column definitions (constraints for example)
+* Support dataset lifecycle management - add replacement, migration, deletion, and export capabilities
+* Package backend as a reusable Java library - allow the API-generation functionality to be embedded directly into existing applications without requiring a separate server

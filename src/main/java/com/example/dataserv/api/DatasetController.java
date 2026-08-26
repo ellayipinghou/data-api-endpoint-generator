@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.Map;
 
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000"})
 @RestController
 @RequestMapping("/datasets")
 public class DatasetController {

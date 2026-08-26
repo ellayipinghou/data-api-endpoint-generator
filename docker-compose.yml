@@ -1,0 +1,33 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+
+  backend:
+    build:
+      context: .
+    depends_on:
+      - postgres
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/dataserv
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8080:8080"
+    
+  postgres:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: dataserv
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data # Persist actual postgres data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql # PostgreSQL image sees the file in /docker-entrypoint-initdb.d/ and automatically executes it when initializing a new database
+
+volumes:
+  postgres-data:

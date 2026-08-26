@@ -1,6 +1,5 @@
 package com.example.dataserv.application;
 
-import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.api.PreviewIssue;
 import com.example.dataserv.api.PreviewIssueKind;
 import com.example.dataserv.domain.DataColumn;
@@ -8,8 +7,6 @@ import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.ingestion.TypeInferer;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,7 +21,7 @@ public final class SchemaValidationHelper {
             issues.add(new PreviewIssue(
                 PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
                 null,
-                "The first row may be data, not a header"
+                "The first row may be data, should be a header"
             ));
         }
 

@@ -412,7 +412,7 @@ A named Docker volume is used to persist PostgreSQL data independently of the da
 
 ## Potential Future Work
 
-* Broaden data sources and formats - support JSON/JSONL, Parquet, and generating APIs from existing database tables
+* Broaden data sources and formats (registry pattern) - support JSON/JSONL, Parquet, and generating APIs from existing database tables
 * Expand query capabilities - add more advanced filtering, as well as pagination and aggregation
 * Improve scalability - stream large CSV files directly from temporary storage to PostgreSQL instead of loading entire files into memory
 * Improve database error handling - translate PostgreSQL errors into clear, actionable messages for users

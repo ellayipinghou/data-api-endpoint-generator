@@ -2,6 +2,7 @@ package com.example.dataserv.ingestion.csv;
 
 import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.DatasetSchema;
+import com.example.dataserv.ingestion.ParseResult;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -206,10 +207,10 @@ class CsvDatasetParserTests {
     void quotedFieldsWithEmbeddedCommasAreParsedAsSingleValues() throws Exception {
         String csv = "name,note\n\"Smith, John\",hello\n";
 
-        CsvParseResult result = parser.parse(input(csv));
+        ParseResult result = parser.parse(input(csv));
 
         assertEquals(2, result.schema().getColumns().size());
-        assertEquals("Smith, John", result.previewRows().get(0).get(0));
+        assertEquals("Smith, John", result.previewRows().get(0).getValues().get("name"));
     }
 
     /*
@@ -222,13 +223,13 @@ class CsvDatasetParserTests {
     void parseReturnsSchemaHeadersAndPreviewRowsFromOnePass() throws IOException {
         String csv = "name,age\nAlice,25\nBob,30\n";
 
-        CsvParseResult result = parser.parse(input(csv));
+        ParseResult result = parser.parse(input(csv));
 
         assertEquals(List.of("name", "age"), result.headers());
         assertEquals(2, result.schema().getColumns().size());
         assertEquals(2, result.previewRows().size());
-        assertEquals("Alice", result.previewRows().get(0).get(0));
-        assertEquals("25", result.previewRows().get(0).get(1));
+        assertEquals("Alice", result.previewRows().get(0).getValues().get("name"));
+        assertEquals("25", result.previewRows().get(0).getValues().get("age"));
     }
 
     @Test
@@ -238,10 +239,10 @@ class CsvDatasetParserTests {
             csv.append("person").append(i).append(",").append(20 + i).append("\n");
         }
 
-        CsvParseResult result = parser.parse(input(csv.toString()));
+        ParseResult result = parser.parse(input(csv.toString()));
 
         assertEquals(CsvDatasetParser.PREVIEW_SAMPLE_SIZE, result.previewRows().size());
-        assertEquals("person0", result.previewRows().get(0).get(0));
+        assertEquals("person0", result.previewRows().get(0).getValues().get("name"));    
     }
 
     @Test
@@ -253,7 +254,7 @@ class CsvDatasetParserTests {
             csv.append(i).append("\n");
         }
 
-        CsvParseResult result = parser.parse(input(csv.toString()));
+        ParseResult result = parser.parse(input(csv.toString()));
 
         assertEquals(DataType.INTEGER, result.schema().getColumns().get(0).getType());
         assertEquals(10, result.previewRows().size());
@@ -263,7 +264,7 @@ class CsvDatasetParserTests {
     void parseReturnsFewerThanTenPreviewRowsWhenFewerAreAvailable() throws IOException {
         String csv = "name,age\nAlice,25\n";
 
-        CsvParseResult result = parser.parse(input(csv));
+        ParseResult result = parser.parse(input(csv));
 
         assertEquals(1, result.previewRows().size());
     }

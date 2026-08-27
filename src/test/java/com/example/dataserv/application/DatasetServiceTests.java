@@ -7,6 +7,8 @@ import com.example.dataserv.domain.Dataset;
 import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.domain.Filter;
 import com.example.dataserv.domain.FilterOperator;
+import com.example.dataserv.ingestion.DatasetParser;
+import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,10 +40,12 @@ class DatasetServiceTests {
     private DatasetRepository repository;
 
     private DatasetService service;
+    private DatasetParser parser;
 
     @BeforeEach
     void setUp() {
-        service = new DatasetService(repository);
+        parser = new CsvDatasetParser();
+        service = new DatasetService(repository, parser);
     }
 
     /*

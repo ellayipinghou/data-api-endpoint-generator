@@ -1,6 +1,8 @@
 package com.example.dataserv.application;
 
 import com.example.dataserv.domain.*;
+import com.example.dataserv.ingestion.DatasetParser;
+import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -9,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class FilterValidationTests {
@@ -16,6 +19,7 @@ class FilterValidationTests {
     @Test
     void queryConvertsFilterValuesAndValidatesOperators() {
         DatasetRepository repo = mock(DatasetRepository.class);
+        DatasetParser parser = new CsvDatasetParser();
 
         DatasetSchema schema = new DatasetSchema(List.of(
                 new DataColumn("name", DataType.STRING),
@@ -28,7 +32,7 @@ class FilterValidationTests {
 
         when(repo.findById(id)).thenReturn(java.util.Optional.of(dataset));
 
-        DatasetService service = new DatasetService(repo);
+        DatasetService service = new DatasetService(repo, parser);
 
         List<Filter> filters = List.of(
                 new Filter("age", FilterOperator.GREATER_THAN, "30"),

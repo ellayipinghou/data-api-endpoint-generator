@@ -4,6 +4,8 @@ import com.example.dataserv.api.DatasetValidationException;
 import com.example.dataserv.api.InvalidTypeOverrideException;
 import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.Dataset;
+import com.example.dataserv.ingestion.DatasetParser;
+import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,7 +38,8 @@ class DatasetServicePreviewTests {
     @Test
     void previewReturnsSchemaAndSamples() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file",
@@ -58,7 +61,8 @@ class DatasetServicePreviewTests {
     @Test
     void previewLimitsSampleRowsToTen() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         StringBuilder csv = new StringBuilder("name,age\n");
         for (int i = 0; i < 25; i++) {
@@ -77,7 +81,8 @@ class DatasetServicePreviewTests {
     @Test
     void previewRejectsEmptyFile() {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "empty.csv", "text/csv", new byte[0]
@@ -96,7 +101,8 @@ class DatasetServicePreviewTests {
         // Sanity check that previewDataset actually plugs collectIssues/checkCanSubmit
         // output into the response, without re-testing every validation rule here.
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
@@ -111,7 +117,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewRejectsInvalidPreview() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
@@ -130,7 +137,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewUsesStoredCsvAndSchema() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
@@ -151,7 +159,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewRejectsUnknownPreviewId() {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         java.util.UUID unknownId = java.util.UUID.randomUUID();
 
@@ -166,7 +175,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewRejectsExpiredPreview() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\n".getBytes()
@@ -198,7 +208,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewAppliesValidTypeOverride() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         // "age" values are all valid integers, so STRING is a safe (if unusual) retype candidate
         MockMultipartFile file = new MockMultipartFile(
@@ -221,7 +232,8 @@ class DatasetServicePreviewTests {
     @Test
     void createDatasetFromPreviewRejectsOverrideOutsideSampledCandidates() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
-        DatasetService service = new DatasetService(repository);
+        DatasetParser parser = new CsvDatasetParser();
+        DatasetService service = new DatasetService(repository, parser);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()

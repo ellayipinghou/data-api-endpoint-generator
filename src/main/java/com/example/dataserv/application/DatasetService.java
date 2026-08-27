@@ -12,10 +12,9 @@ import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.domain.Filter;
 import com.example.dataserv.domain.FilterOperator;
 import com.example.dataserv.storage.DatasetRepository;
-import com.example.dataserv.ingestion.csv.CsvDatasetParser;
-import com.example.dataserv.ingestion.csv.CsvParseResult;
+import com.example.dataserv.ingestion.DatasetParser;
+import com.example.dataserv.ingestion.ParseResult;
 
-import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,37 +35,27 @@ import java.util.UUID;
 
 @Service
 public class DatasetService {
-
     private final DatasetRepository repository;
+    private final DatasetParser parser;
 
-    public DatasetService(DatasetRepository repository) {
+    public DatasetService(DatasetRepository repository, DatasetParser parser) {
         this.repository = repository;
+        this.parser = parser;
     }
 
     public DatasetPreviewResponse previewDataset(MultipartFile file) throws IOException {
         byte[] content = file.getBytes();
-        CsvParseResult parsed = new CsvDatasetParser().parse(new ByteArrayInputStream(content));
+        ParseResult parsed = parser.parse(new ByteArrayInputStream(content));
         DatasetSchema schema = parsed.schema();
 
         PreviewStorage storage = new PreviewStorage();
         UUID previewId = storage.save(file);
 
-        List<DataRow> sampleRows = new ArrayList<>();
-        List<String> headers = parsed.headers();
-
-        for (CSVRecord record : parsed.previewRows()) {
-            Map<String, Object> values = new HashMap<>();
-            for (int i = 0; i < headers.size(); i++) {
-                values.put(headers.get(i), CsvDatasetParser.cellValue(record, i));
-            }
-            sampleRows.add(new DataRow(values));
-        }
-
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
         boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
         return new DatasetPreviewResponse(
-                previewId, schema, sampleRows, issues, canSubmit, parsed.typeOptions()
+                previewId, schema, parsed.previewRows(), issues, canSubmit, parsed.typeOptions()
         );
     }
 
@@ -91,7 +80,7 @@ public class DatasetService {
         }
 
         // full parse (not just parseSchema) so we get typeOptions to validate overrides against
-        CsvParseResult parsed = new CsvDatasetParser().parse(new ByteArrayInputStream(previewBytes));
+        ParseResult parsed = parser.parse(new ByteArrayInputStream(previewBytes));
         DatasetSchema schema = applyTypeOverrides(parsed, typeOverrides);
 
         Dataset dataset;
@@ -103,7 +92,7 @@ public class DatasetService {
         return dataset;
     }
 
-    private DatasetSchema applyTypeOverrides(CsvParseResult parsed, Map<String, DataType> typeOverrides) {
+    private DatasetSchema applyTypeOverrides(ParseResult parsed, Map<String, DataType> typeOverrides) {
         if (typeOverrides == null || typeOverrides.isEmpty()) {
             return parsed.schema();
         }

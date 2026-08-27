@@ -1,13 +1,16 @@
 package com.example.dataserv.ingestion.csv;
 
 import com.example.dataserv.domain.DataColumn;
+import com.example.dataserv.domain.DataRow;
 import com.example.dataserv.domain.DataType;
 import com.example.dataserv.domain.DatasetSchema;
 import com.example.dataserv.ingestion.DatasetParser;
+import com.example.dataserv.ingestion.ParseResult;
 import com.example.dataserv.ingestion.TypeInferer;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,13 +24,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.Map;
 
-
+@Component // needs to be a bean so Spring can inject it as the DatasetParser
 public class CsvDatasetParser implements DatasetParser {
 
     static final int INFERENCE_SAMPLE_SIZE = 100;
     static final int PREVIEW_SAMPLE_SIZE = 10;
 
-    public CsvParseResult parse(InputStream input) throws IOException {
+    public ParseResult parse(InputStream input) throws IOException {
         Reader reader = new InputStreamReader(input, StandardCharsets.UTF_8);
 
         try (CSVParser csvParser = CSVFormat.DEFAULT.parse(reader)) {
@@ -51,17 +54,24 @@ public class CsvDatasetParser implements DatasetParser {
             List<DataColumn> columns = inferColumns(headers, sampleRecords, typeOptions);
             DatasetSchema schema = new DatasetSchema(columns);
 
-            List<CSVRecord> previewRows = sampleRecords.size() > PREVIEW_SAMPLE_SIZE
-                    ? sampleRecords.subList(0, PREVIEW_SAMPLE_SIZE)
-                    : sampleRecords;
+            List<CSVRecord> previewRecords = sampleRecords.size() > PREVIEW_SAMPLE_SIZE
+                ? sampleRecords.subList(0, PREVIEW_SAMPLE_SIZE)
+                : sampleRecords;
 
-            return new CsvParseResult(schema, headers, previewRows, typeOptions);
+            return new ParseResult(schema, headers, toDataRows(headers, previewRecords), typeOptions);
         }
     }
 
-    @Override
-    public DatasetSchema parseSchema(InputStream input) throws IOException {
-        return parse(input).schema();
+    private List<DataRow> toDataRows(List<String> headers, List<CSVRecord> records) {
+        List<DataRow> rows = new ArrayList<>();
+        for (CSVRecord record : records) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            for (int i = 0; i < headers.size(); i++) {
+                values.put(headers.get(i), cellValue(record, i));
+            }
+            rows.add(new DataRow(values));
+        }
+        return rows;
     }
 
     private List<DataColumn> inferColumns(List<String> headers, List<CSVRecord> sampleRecords, Map<String, List<DataType>> typeOptionsOut) {
@@ -95,7 +105,8 @@ public class CsvDatasetParser implements DatasetParser {
         return sampleRecords;
     }
 
-    public static String cellValue(CSVRecord record, int index) {
+    // no longer needs to be public — only CsvDatasetParser itself uses it now
+    private static String cellValue(CSVRecord record, int index) {
         try {
             String v = record.get(index);
             return v == null ? null : v.trim();

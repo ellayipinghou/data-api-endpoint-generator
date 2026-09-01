@@ -37,11 +37,13 @@ import java.util.UUID;
 public class DatasetService {
     private final DatasetRepository repository;
     private final DatasetParser parser;
+    private final PreviewStorage previewStorage; // inject instead of creating
 
     // inject repository and parser dependencies
-    public DatasetService(DatasetRepository repository, DatasetParser parser) {
+    public DatasetService(DatasetRepository repository, DatasetParser parser, PreviewStorage storage) {
         this.repository = repository;
         this.parser = parser;
+        this.previewStorage = storage;
     }
 
     // parse file, validate schema, store preview, and return schema info with any issues
@@ -51,14 +53,13 @@ public class DatasetService {
         DatasetSchema schema = parsed.schema();
 
         // temporarily store file for later dataset creation
-        PreviewStorage storage = new PreviewStorage();
-        UUID previewId = storage.save(file);
+        UUID previewId = previewStorage.save(file);
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
         boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
         return new DatasetPreviewResponse(
-                previewId, schema, parsed.previewRows(), issues, canSubmit, parsed.typeOptions()
+            previewId, schema, parsed.previewRows(), issues, canSubmit, parsed.typeOptions()
         );
     }
 
@@ -67,8 +68,6 @@ public class DatasetService {
     public Dataset createDatasetFromPreview(
         String name, UUID previewId, Map<String, DataType> typeOverrides
     ) throws IOException, SQLException {
-        PreviewStorage previewStorage = new PreviewStorage();
-
         // verify preview exists and is still valid
         if (!previewStorage.exists(previewId)) {
             throw new PreviewMissingException();

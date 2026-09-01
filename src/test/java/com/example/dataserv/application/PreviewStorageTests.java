@@ -31,6 +31,7 @@ class PreviewStorageTests {
 
         UUID id = storage.save(file);
 
+        // verify the saved preview can be found and opened before deletion
         assertTrue(storage.exists(id));
 
         try (InputStream in = storage.open(id)) {
@@ -42,6 +43,7 @@ class PreviewStorageTests {
 
         storage.delete(id);
 
+        // deletion should remove the preview from storage
         assertFalse(storage.exists(id));
     }
 
@@ -58,6 +60,8 @@ class PreviewStorageTests {
 
         UUID id = storage.save(file);
         Path target = tempDir.resolve("preview_" + id + ".csv");
+
+        // backdate the file so it is unambiguously past the expiry threshold
         Files.setLastModifiedTime(
             target,
             FileTime.fromMillis(
@@ -69,6 +73,7 @@ class PreviewStorageTests {
 
         storage.deleteExpired(Duration.ofMinutes(30));
 
+        // expired previews should be removed during cleanup.
         assertFalse(storage.exists(id));
     }
 
@@ -78,10 +83,13 @@ class PreviewStorageTests {
 
         UUID expiredId = UUID.randomUUID();
         Path expiredTarget = tempDir.resolve("preview_" + expiredId + ".csv");
+
         Files.writeString(
             expiredTarget,
             "name,age\nAlice,25\n"
         );
+
+        // create an existing preview that is already past the cleanup threshold
         Files.setLastModifiedTime(
             expiredTarget,
             FileTime.fromMillis(
@@ -98,6 +106,7 @@ class PreviewStorageTests {
 
         UUID newId = storage.save(newFile);
 
+        // saving a new preview should clean up stale files without affecting the new one
         assertFalse(storage.exists(expiredId));
         assertTrue(storage.exists(newId));
     }

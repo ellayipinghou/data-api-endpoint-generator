@@ -9,6 +9,7 @@ import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 import com.example.dataserv.storage.DatasetRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -23,23 +24,34 @@ import static org.mockito.Mockito.verify;
 import java.util.Map;
 
 /**
- * Integration-style tests for the preview -> create flow: CSV parsing,
- * PreviewStorage read/write/expiry, and wiring collectIssues/checkCanSubmit
- * results through to DatasetPreviewResponse and createDataset.
+ * integration-style tests for the preview -> create flow: csv parsing,
+ * previewstorage persistence/expiry, and wiring validation results through
+ * datasetpreviewresponse and createdataset.
  *
- * Exhaustive validation-rule coverage (which column names/values trigger
- * which PreviewIssueKind, blocking vs non-blocking, etc.) lives in
- * SchemaValidationHelperTests - this file only needs enough cases to prove
+ * most tests use a real previewstorage backed by a per-test temporary
+ * directory because the preview -> create flow depends on actual stored
+ * files. tests that do not exercise storage mock it instead.
+ *
+ * exhaustive validation-rule coverage (which column names/values trigger
+ * which previewissuekind, blocking vs non-blocking, etc.) lives in
+ * schemavalidationhelpertests - this file only needs enough cases to prove
  * the wiring is correct end-to-end, not to re-derive every rule.
  */
 @ExtendWith(MockitoExtension.class)
 class DatasetServicePreviewTests {
 
+    // isolate preview files so tests do not share or modify application storage
+    @TempDir
+    Path tempDir;
+
     @Test
     void previewReturnsSchemaAndSamples() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because previewDataset must persist the uploaded file
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file",
@@ -50,6 +62,7 @@ class DatasetServicePreviewTests {
 
         var response = service.previewDataset(file);
 
+        // verify that parsing and preview response data were populated
         assertNotNull(response);
         assertNotNull(response.getPreviewId());
         assertNotNull(response.getSchema());
@@ -62,7 +75,10 @@ class DatasetServicePreviewTests {
     void previewLimitsSampleRowsToTen() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because previewDataset persists the uploaded file
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         StringBuilder csv = new StringBuilder("name,age\n");
         for (int i = 0; i < 25; i++) {
@@ -75,6 +91,7 @@ class DatasetServicePreviewTests {
 
         var response = service.previewDataset(file);
 
+        // confirm that only the configured maximum number of sample rows is returned
         assertEquals(10, response.getSampleRows().size());
     }
 
@@ -82,7 +99,10 @@ class DatasetServicePreviewTests {
     void previewRejectsEmptyFile() {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // mock storage because parsing fails before preview storage is accessed
+        PreviewStorage storage = mock(PreviewStorage.class);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "empty.csv", "text/csv", new byte[0]
@@ -93,16 +113,18 @@ class DatasetServicePreviewTests {
             () -> service.previewDataset(file)
         );
 
+        // the parser should reject the file because it has no header
         assertTrue(ex.getMessage().contains("header"));
     }
 
     @Test
     void previewWiresCollectedIssuesAndCanSubmitFromSchema() throws Exception {
-        // Sanity check that previewDataset actually plugs collectIssues/checkCanSubmit
-        // output into the response, without re-testing every validation rule here.
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because this test exercises the full preview flow
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
@@ -110,6 +132,7 @@ class DatasetServicePreviewTests {
 
         var response = service.previewDataset(file);
 
+        // the blank column should produce an issue that prevents submission
         assertFalse(response.isCanSubmit());
         assertFalse(response.getIssues().isEmpty());
     }
@@ -118,7 +141,10 @@ class DatasetServicePreviewTests {
     void createDatasetFromPreviewRejectsInvalidPreview() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because createDatasetFromPreview reads the stored preview
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", ",age\nAlice,25\nBob,30\n".getBytes()
@@ -126,6 +152,7 @@ class DatasetServicePreviewTests {
 
         var preview = service.previewDataset(file);
 
+        // the preview exists, but its schema contains a blocking validation issue
         DatasetValidationException ex = assertThrows(
             DatasetValidationException.class,
             () -> service.createDatasetFromPreview("invalid", preview.getPreviewId(), Map.of())
@@ -138,29 +165,41 @@ class DatasetServicePreviewTests {
     void createDatasetFromPreviewUsesStoredCsvAndSchema() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage to verify the preview is read from persisted csv data
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
-        Dataset created = service.createDatasetFromPreview("from-preview", preview.getPreviewId(), Map.of());
+        Dataset created = service.createDatasetFromPreview(
+            "from-preview", preview.getPreviewId(), Map.of()
+        );
 
         assertNotNull(created);
         assertEquals("from-preview", created.getName());
         assertEquals(2, created.getSchema().getColumns().size());
-        assertFalse(new PreviewStorage().exists(preview.getPreviewId()));
+
+        // successful creation should remove the temporary preview file
+        assertFalse(storage.exists(preview.getPreviewId()));
+
+        // verify that the repository received the created dataset and schema
         verify(repository).saveMetadata(created);
         verify(repository).createTable(eq(created.getId()), eq(created.getSchema()));
         verify(repository).copyData(eq(created.getId()), eq(created.getSchema()), any());
     }
 
     @Test
-    void createDatasetFromPreviewRejectsUnknownPreviewId() {
+    void createDatasetFromPreviewRejectsUnknownPreviewId() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage so the missing-id check exercises actual storage behavior
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         java.util.UUID unknownId = java.util.UUID.randomUUID();
 
@@ -169,6 +208,7 @@ class DatasetServicePreviewTests {
             () -> service.createDatasetFromPreview("nope", unknownId, Map.of())
         );
 
+        // an id with no corresponding preview file should be rejected immediately
         assertTrue(ex.getMessage().contains("missing"));
     }
 
@@ -176,19 +216,22 @@ class DatasetServicePreviewTests {
     void createDatasetFromPreviewRejectsExpiredPreview() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because expiration depends on the stored file timestamp
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\n".getBytes()
         );
 
         var preview = service.previewDataset(file);
-        PreviewStorage storage = new PreviewStorage();
-        Path target = Path.of(
-            System.getProperty("java.io.tmpdir"),
-            "dataserv-previews",
+
+        Path target = tempDir.resolve(
             "preview_" + preview.getPreviewId() + ".csv"
         );
+
+        // make the preview older than the configured 30-minute ttl
         java.nio.file.Files.setLastModifiedTime(
             target,
             java.nio.file.attribute.FileTime.fromMillis(
@@ -202,6 +245,8 @@ class DatasetServicePreviewTests {
         );
 
         assertTrue(ex.getMessage().contains("expired"));
+
+        // expired previews should be deleted when they are detected
         assertFalse(storage.exists(preview.getPreviewId()));
     }
 
@@ -209,9 +254,12 @@ class DatasetServicePreviewTests {
     void createDatasetFromPreviewAppliesValidTypeOverride() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
 
-        // "age" values are all valid integers, so STRING is a safe (if unusual) retype candidate
+        // use real storage because the override is applied after reading the stored preview
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
+
+        // all sampled age values support both integer and string representations
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
         );
@@ -226,6 +274,7 @@ class DatasetServicePreviewTests {
             .findFirst()
             .orElseThrow();
 
+        // confirm that the requested type override was applied to the created schema
         assertEquals(DataType.STRING, ageColumn.getType());
     }
 
@@ -233,7 +282,10 @@ class DatasetServicePreviewTests {
     void createDatasetFromPreviewRejectsOverrideOutsideSampledCandidates() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
-        DatasetService service = new DatasetService(repository, parser);
+
+        // use real storage because type candidates come from the stored preview
+        PreviewStorage storage = new PreviewStorage(tempDir);
+        DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
             "file", "data.csv", "text/csv", "name,age\nAlice,25\nBob,30\n".getBytes()
@@ -241,10 +293,13 @@ class DatasetServicePreviewTests {
 
         var preview = service.previewDataset(file);
 
+        // date is not a valid inferred candidate for the sampled integer values
         InvalidTypeOverrideException ex = assertThrows(
             InvalidTypeOverrideException.class,
             () -> service.createDatasetFromPreview(
-                "bad-override", preview.getPreviewId(), Map.of("age", DataType.DATE) // can't override age col with date because values don't support
+                "bad-override",
+                preview.getPreviewId(),
+                Map.of("age", DataType.DATE)
             )
         );
 

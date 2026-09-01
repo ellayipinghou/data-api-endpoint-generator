@@ -14,9 +14,9 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Exhaustive tests for schema validation logic in isolation:
- * no service, no CSV parsing, no mocking - just DatasetSchema in,
- * List<PreviewIssue> / boolean out.
+ * exhaustive tests for schema validation logic in isolation:
+ * no service, no csv parsing, no mocking - just DatasetSchema in,
+ * List<PreviewIssue> / boolean out
  */
 class SchemaValidationHelperTests {
 
@@ -35,6 +35,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
+        // a valid schema should produce no validation issues
         assertTrue(issues.isEmpty());
     }
 
@@ -44,6 +45,7 @@ class SchemaValidationHelperTests {
             new DataColumn("id", DataType.LONG)
         );
 
+        // a single valid column should be accepted without issues
         assertTrue(SchemaValidationHelper.collectIssues(schema).isEmpty());
     }
 
@@ -85,6 +87,7 @@ class SchemaValidationHelperTests {
             new DataColumn("", DataType.STRING)
         );
 
+        // an empty column name prevents the dataset from being submitted
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
@@ -106,7 +109,7 @@ class SchemaValidationHelperTests {
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertTrue(issues.stream()
-                .anyMatch(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME));
+            .anyMatch(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME));
     }
 
     @Test
@@ -123,7 +126,7 @@ class SchemaValidationHelperTests {
             .filter(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME)
             .count();
 
-        // first "name" is fine, 2nd and 3rd are duplicates
+        // the first occurrence is valid while each later occurrence is a duplicate
         assertEquals(2, duplicateCount);
     }
 
@@ -134,6 +137,7 @@ class SchemaValidationHelperTests {
             new DataColumn("name", DataType.STRING)
         );
 
+        // duplicate names cannot be submitted because the schema is ambiguous
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
@@ -147,10 +151,10 @@ class SchemaValidationHelperTests {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "first name",   // contains a space
-        "age!",         // punctuation
-        "123abc",       // starts with a digit, but not purely numeric
-        "na-me"         // hyphen
+        "first name", // contains a space
+        "age!", // contains punctuation
+        "123abc", // starts with a digit
+        "na-me" // contains a hyphen
     })
     void collectIssuesFlagsInvalidColumnNames(String columnName) {
         DatasetSchema schema = schemaOf(
@@ -188,6 +192,7 @@ class SchemaValidationHelperTests {
             new DataColumn("first name", DataType.STRING)
         );
 
+        // invalid identifiers must be fixed before the dataset can be submitted
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
@@ -201,13 +206,13 @@ class SchemaValidationHelperTests {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "1",                    // integer
-            "123456789012",         // long
-            "3.14",                 // double
-            "true",                 // boolean
-            "false",                // boolean
-            "2020-01-01",           // date
-            "2020-01-01T12:30:00"   // datetime
+        "1",                    // integer
+        "123456789012",         // long
+        "3.14",                 // double
+        "true",                 // boolean
+        "false",                // boolean
+        "2020-01-01",           // date
+        "2020-01-01T12:30:00"   // datetime
     })
     void collectIssuesFlagsHeadersThatLookLikeData(String columnName) {
         DatasetSchema schema = schemaOf(
@@ -216,6 +221,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
+        // these values are valid data values but suspicious as column names
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
     }
@@ -229,6 +235,7 @@ class SchemaValidationHelperTests {
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
+        // ordinary identifier-style names should not be mistaken for data values
         assertTrue(issues.stream()
             .noneMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
     }
@@ -244,14 +251,14 @@ class SchemaValidationHelperTests {
 
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+
+        // this warning is informational, so it should not prevent submission
         assertTrue(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     @Test
     void collectIssuesFlagsPurelyNumericHeaderAsBothSuspectedDataRowAndInvalidName() {
-        // "1" both looks like data AND fails the identifier regex (starts with a digit) -
-        // both issues are expected to surface, and the blocking one (INVALID_COLUMN_NAME)
-        // means this schema cannot be submitted as-is.
+        // "1" looks like data and also fails the identifier rules
         DatasetSchema schema = schemaOf(
             new DataColumn("1", DataType.STRING),
             new DataColumn("2", DataType.STRING)
@@ -261,8 +268,11 @@ class SchemaValidationHelperTests {
 
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW));
+
         assertTrue(issues.stream()
             .anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
+
+        // the invalid name is blocking even though the suspected-data warning is not
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
@@ -275,14 +285,15 @@ class SchemaValidationHelperTests {
     @Test
     void collectIssuesCanReturnMultipleDistinctIssuesForOneSchema() {
         DatasetSchema schema = schemaOf(
-            new DataColumn("", DataType.STRING),          // empty
+            new DataColumn("", DataType.STRING), // empty name
             new DataColumn("name", DataType.STRING),
-            new DataColumn("name", DataType.STRING),       // duplicate
-            new DataColumn("bad name!", DataType.STRING)   // invalid
+            new DataColumn("name", DataType.STRING), // duplicate name
+            new DataColumn("bad name!", DataType.STRING) // invalid name
         );
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
 
+        // one schema can surface multiple independent validation problems
         assertTrue(issues.stream().anyMatch(i -> i.getKind() == PreviewIssueKind.EMPTY_COLUMN_NAME));
         assertTrue(issues.stream().anyMatch(i -> i.getKind() == PreviewIssueKind.DUPLICATE_COLUMN_NAME));
         assertTrue(issues.stream().anyMatch(i -> i.getKind() == PreviewIssueKind.INVALID_COLUMN_NAME));
@@ -296,15 +307,21 @@ class SchemaValidationHelperTests {
 
     @Test
     void checkCanSubmitReturnsTrueForEmptyIssueList() {
+        // no issues means there is nothing preventing submission
         assertTrue(SchemaValidationHelper.checkCanSubmit(List.of()));
     }
 
     @Test
     void checkCanSubmitReturnsTrueWhenOnlyNonBlockingIssuesPresent() {
         List<PreviewIssue> issues = List.of(
-            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "random_col", "looks like data")
+            new PreviewIssue(
+                PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
+                "random_col",
+                "looks like data"
+            )
         );
 
+        // non-blocking warnings should still allow the dataset to be submitted
         assertTrue(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
@@ -316,18 +333,30 @@ class SchemaValidationHelperTests {
     })
     void checkCanSubmitReturnsFalseWhenAnyBlockingIssuePresent(String kindName) {
         PreviewIssueKind kind = PreviewIssueKind.valueOf(kindName);
-        List<PreviewIssue> issues = List.of(new PreviewIssue(kind, "random_col", "some message"));
+        List<PreviewIssue> issues = List.of(
+            new PreviewIssue(kind, "random_col", "some message")
+        );
 
+        // any blocking issue is enough to prevent submission
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 
     @Test
     void checkCanSubmitReturnsFalseWhenBlockingIssueMixedWithNonBlocking() {
         List<PreviewIssue> issues = List.of(
-            new PreviewIssue(PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW, "random_col", "looks like data"),
-            new PreviewIssue(PreviewIssueKind.EMPTY_COLUMN_NAME, null,"blank")
+            new PreviewIssue(
+                PreviewIssueKind.HEADER_SUSPECTED_DATA_ROW,
+                "random_col",
+                "looks like data"
+            ),
+            new PreviewIssue(
+                PreviewIssueKind.EMPTY_COLUMN_NAME,
+                null,
+                "blank"
+            )
         );
 
+        // a blocking issue still prevents submission when warnings are also present
         assertFalse(SchemaValidationHelper.checkCanSubmit(issues));
     }
 

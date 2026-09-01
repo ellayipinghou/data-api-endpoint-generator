@@ -105,7 +105,7 @@ public class CsvDatasetParser implements DatasetParser {
         return sampleRecords;
     }
 
-    // no longer needs to be public — only CsvDatasetParser itself uses it now
+    // no longer needs to be public - only CsvDatasetParser itself uses it now
     private static String cellValue(CSVRecord record, int index) {
         try {
             String v = record.get(index);

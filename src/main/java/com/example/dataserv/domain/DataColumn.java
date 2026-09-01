@@ -5,7 +5,7 @@ import java.util.List;
 
 public class DataColumn {
     private final String name;
-    private final DataType type;
+    private DataType type;
     private final List<String> operators;
 
     // TODO: potentially add constraints
@@ -43,6 +43,10 @@ public class DataColumn {
 
     public List<String> getOperators() {
         return operators;
+    }
+
+    public void setType(DataType type) {
+        this.type = type;
     }
 
     @Override

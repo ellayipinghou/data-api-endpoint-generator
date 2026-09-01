@@ -27,27 +27,30 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+// handles dataset lifecycle: parsing, previewing, creating, querying, and deleting datasets
 @Service
 public class DatasetService {
     private final DatasetRepository repository;
     private final DatasetParser parser;
 
+    // inject repository and parser dependencies
     public DatasetService(DatasetRepository repository, DatasetParser parser) {
         this.repository = repository;
         this.parser = parser;
     }
 
+    // parse file, validate schema, store preview, and return schema info with any issues
     public DatasetPreviewResponse previewDataset(MultipartFile file) throws IOException {
         byte[] content = file.getBytes();
         ParseResult parsed = parser.parse(new ByteArrayInputStream(content));
         DatasetSchema schema = parsed.schema();
 
+        // temporarily store file for later dataset creation
         PreviewStorage storage = new PreviewStorage();
         UUID previewId = storage.save(file);
 
@@ -59,12 +62,14 @@ public class DatasetService {
         );
     }
 
+    // validate preview exists and hasn't expired, apply type overrides, create dataset, cleanup
     @Transactional(rollbackFor = Exception.class)
     public Dataset createDatasetFromPreview(
         String name, UUID previewId, Map<String, DataType> typeOverrides
     ) throws IOException, SQLException {
         PreviewStorage previewStorage = new PreviewStorage();
 
+        // verify preview exists and is still valid
         if (!previewStorage.exists(previewId)) {
             throw new PreviewMissingException();
         }
@@ -79,7 +84,7 @@ public class DatasetService {
             previewBytes = input.readAllBytes();
         }
 
-        // full parse (not just parseSchema) so we get typeOptions to validate overrides against
+        // full parse to get typeOptions for validating overrides
         ParseResult parsed = parser.parse(new ByteArrayInputStream(previewBytes));
         DatasetSchema schema = applyTypeOverrides(parsed, typeOverrides);
 
@@ -88,23 +93,24 @@ public class DatasetService {
             dataset = createDataset(name, schema, input);
         }
 
+        // cleanup preview storage
         previewStorage.delete(previewId);
         return dataset;
     }
 
+    // apply user-provided type overrides to schema, validating against inferred type options
     private DatasetSchema applyTypeOverrides(ParseResult parsed, Map<String, DataType> typeOverrides) {
         if (typeOverrides == null || typeOverrides.isEmpty()) {
             return parsed.schema();
         }
 
-        List<DataColumn> result = new ArrayList<>();
         for (DataColumn column : parsed.schema().getColumns()) {
             DataType override = typeOverrides.get(column.getName());
             if (override == null) {
-                result.add(column);
                 continue;
             }
 
+            // ensure override is among the inferred type options
             List<DataType> allowed = parsed.typeOptions().getOrDefault(column.getName(), List.of());
             if (!allowed.contains(override)) {
                 throw new InvalidTypeOverrideException(
@@ -112,13 +118,15 @@ public class DatasetService {
                         + "; sampled values only support " + allowed
                 );
             }
-            result.add(new DataColumn(column.getName(), override));
+            column.setType(override);
         }
-        return new DatasetSchema(result);
+        return parsed.schema();
     }
 
+    // validate schema, generate dataset id, save metadata, create table, and load data
     @Transactional(rollbackFor = Exception.class)
     public Dataset createDataset(String name, DatasetSchema schema, InputStream input) throws IOException, SQLException {
+        // validate schema before proceeding
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
         boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
 
@@ -129,6 +137,7 @@ public class DatasetService {
         UUID id = UUID.randomUUID();
         Dataset dataset = new Dataset(id, name, schema, 0, Instant.now());
 
+        // persist metadata, create database table, and load data
         repository.saveMetadata(dataset);
         repository.createTable(id, schema);
         repository.copyData(id, schema, input);
@@ -136,6 +145,7 @@ public class DatasetService {
         return dataset;
     }
 
+    // lookup operations for datasets
     public Optional<Dataset> findDataset(UUID id) {
         return repository.findById(id);
     }
@@ -144,11 +154,13 @@ public class DatasetService {
         return repository.findAll();
     }
 
+    // delete dataset and associated data
     @Transactional
     public void deleteDataset(UUID id) {
         repository.deleteById(id);
     }
 
+    // query dataset with filter list, validating filters against schema
     public List<DataRow> queryDataset(UUID id, List<Filter> filters) {
         Dataset dataset = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Dataset not found: " + id));
@@ -158,6 +170,7 @@ public class DatasetService {
         return repository.query(id, validatedFilters);
     }
 
+    // parse query parameters to extract filters, sort, limit, and offset; execute query
     public List<DataRow> queryDatasetWithParams(UUID id, Map<String, String> params) {
         Dataset dataset = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Dataset not found: " + id));
@@ -167,6 +180,7 @@ public class DatasetService {
         int limit = 100;
         int offset = 0;
 
+        // parse query parameters
         for (var entry : params.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
@@ -197,6 +211,7 @@ public class DatasetService {
                 continue;
             }
 
+            // map suffixes to filter operators
             String column;
             FilterOperator op;
 
@@ -236,6 +251,7 @@ public class DatasetService {
         return repository.query(id, validatedFilters, sort, limit, offset);
     }
 
+    // validate filters against schema and convert values to proper types
     private List<Filter> validateAndConvertFilters(DatasetSchema schema, List<Filter> filters) {
         List<Filter> validatedFilters = new ArrayList<>();
 
@@ -250,6 +266,7 @@ public class DatasetService {
         return validatedFilters;
     }
 
+    // find column by name or throw exception
     private DataColumn findColumn(DatasetSchema schema, String columnName) {
         return schema.getColumns().stream()
                 .filter(column -> column.getName().equals(columnName))
@@ -257,11 +274,13 @@ public class DatasetService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown column: " + columnName));
     }
 
+    // ensure filter operator is valid for the given data type
     private void validateOperator(DataType type, FilterOperator operator) {
         if (operator == null) {
             throw new IllegalArgumentException("Filter operator must not be null");
         }
 
+        // ordered comparisons cannot be applied to boolean columns
         boolean orderedComparison =
                 operator == FilterOperator.GREATER_THAN
                         || operator == FilterOperator.GREATER_THAN_OR_EQUAL
@@ -273,6 +292,7 @@ public class DatasetService {
         }
     }
 
+    // convert filter value string to the appropriate data type
     private Object convertFilterValue(Object value, DataType type) {
         if (value == null) {
             throw new IllegalArgumentException("Filter value must not be null");
@@ -295,6 +315,7 @@ public class DatasetService {
         }
     }
 
+    // parse case-insensitive boolean strings
     private Boolean parseBoolean(String value) {
         if (value.equalsIgnoreCase("true")) {
             return true;

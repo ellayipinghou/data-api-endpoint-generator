@@ -8,7 +8,7 @@ interface AppShellProps {
 function AppShell({ children }: AppShellProps) {
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {/* <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-mark">D</div>
           <div>
@@ -25,7 +25,7 @@ function AppShell({ children }: AppShellProps) {
             Datasets
           </NavLink>
         </nav>
-      </aside>
+      </aside> */}
 
       <main className="content-panel">{children}</main>
     </div>

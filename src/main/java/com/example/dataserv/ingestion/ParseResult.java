@@ -15,8 +15,8 @@ import java.util.Map;
  * retype dropdown in the preview UI.
  */
 public record ParseResult(
-        DatasetSchema schema,
-        List<String> headers,
-        List<DataRow> previewRows,
-        Map<String, List<DataType>> typeOptions
+    DatasetSchema schema,
+    List<String> headers,
+    List<DataRow> previewRows,
+    Map<String, List<DataType>> typeOptions
 ) {}

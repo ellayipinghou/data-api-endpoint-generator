@@ -5,11 +5,13 @@ import DatasetList from "../components/DatasetList"
 import type { Dataset } from "../types/dataset"
 
 function HomePage() {
+  // manage dataset list state and fetch status
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { open } = useCreateModal()
 
+  // fetch datasets from api
   const fetchDatasets = useCallback(() => {
     setLoading(true)
     setError(null)
@@ -25,6 +27,7 @@ function HomePage() {
 
   return (
     <div className="page-shell">
+      {/* page header with title and create button */}
       <div className="page-header">
         <div>
           <p className="eyebrow">Datasets</p>
@@ -37,6 +40,7 @@ function HomePage() {
         </button>
       </div>
 
+      {/* show loading, error, empty, or dataset list states */}
       {loading ? (
         <div className="empty-panel">
           <p>Loading datasets...</p>
@@ -57,6 +61,7 @@ function HomePage() {
           </div>
         </div>
       ) : (
+        // datasets exist, render list
         <DatasetList datasets={datasets} />
       )}
     </div>

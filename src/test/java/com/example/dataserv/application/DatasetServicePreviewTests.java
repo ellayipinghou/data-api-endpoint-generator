@@ -7,6 +7,9 @@ import com.example.dataserv.domain.Dataset;
 import com.example.dataserv.ingestion.DatasetParser;
 import com.example.dataserv.ingestion.csv.CsvDatasetParser;
 import com.example.dataserv.storage.DatasetRepository;
+
+import tools.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,13 +47,15 @@ class DatasetServicePreviewTests {
     @TempDir
     Path tempDir;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
     void previewReturnsSchemaAndSamples() throws Exception {
         DatasetRepository repository = mock(DatasetRepository.class);
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because previewDataset must persist the uploaded file
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -77,7 +82,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because previewDataset persists the uploaded file
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         StringBuilder csv = new StringBuilder("name,age\n");
@@ -123,7 +128,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because this test exercises the full preview flow
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -143,7 +148,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because createDatasetFromPreview reads the stored preview
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -167,7 +172,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage to verify the preview is read from persisted csv data
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -198,7 +203,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage so the missing-id check exercises actual storage behavior
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         java.util.UUID unknownId = java.util.UUID.randomUUID();
@@ -218,7 +223,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because expiration depends on the stored file timestamp
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(
@@ -256,7 +261,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because the override is applied after reading the stored preview
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         // all sampled age values support both integer and string representations
@@ -284,7 +289,7 @@ class DatasetServicePreviewTests {
         DatasetParser parser = new CsvDatasetParser();
 
         // use real storage because type candidates come from the stored preview
-        PreviewStorage storage = new PreviewStorage(tempDir);
+        PreviewStorage storage = new PreviewStorage(tempDir, objectMapper);
         DatasetService service = new DatasetService(repository, parser, storage);
 
         MockMultipartFile file = new MockMultipartFile(

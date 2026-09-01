@@ -1,3 +1,5 @@
+// manage the multi-step flow for uploading, previewing, and creating a dataset
+
 import { useState } from "react"
 import { previewDataset, createDatasetFromPreview } from "../api/datasets"
 import type { DataType, DatasetPreviewResponse } from "../types/dataset"
@@ -10,14 +12,22 @@ interface Props {
 
 type Step = "select" | "previewing" | "preview" | "naming" | "creating"
 
-// TODO: make submit button disabled when failed to create until something changes (a new file upload, etc)
+// TODO?: make submit button disabled when failed to create until something changes (a new file upload, etc)
 
 function CreateDatasetModal({ onClose, onCreated }: Props) {
   const { showError } = useToast()
+
+  // track which stage of the dataset creation flow the user is on
   const [step, setStep] = useState<Step>("select")
+
+  // store the selected file and its preview data
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<DatasetPreviewResponse | null>(null)
+
+  // store errors shown within the modal
   const [error, setError] = useState<string | null>(null)
+
+  // store the dataset name and any user-selected type overrides
   const [datasetName, setDatasetName] = useState("")
   const [typeOverrides, setTypeOverrides] = useState<Record<string, DataType>>({})
 
@@ -54,14 +64,14 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
 
   function handleTypeChange(columnName: string, newType: DataType) {
     setTypeOverrides((prev) => {
-      // if it matches the originally inferred type (changed back), no need to send an override at all
+      // remove the override when the user changes the type back to the inferred type
       const inferred = preview?.schema.columns.find((c) => c.name === columnName)?.type
       if (newType === inferred) {
-        // extract the property matching columnName and assign its value to a temporary unused variable named _removed, return only the rest
         const { [columnName]: _removed, ...rest } = prev
         return rest
       }
-      // if selected type is different from original inferred type, return new object containing all previous overrides, while adding or updating the specific column key with its newType
+
+      // otherwise add or update the override for this column
       return { ...prev, [columnName]: newType }
     })
   }
@@ -77,7 +87,7 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
       onCreated?.()
       onClose()
     } catch (e: any) {
-      // Extract the message string safely whether e is an Error, an object, or a raw string
+      // extract a usable error message from different possible error formats
       let rawMessage = "Please try again."
       
       if (e instanceof Error) {
@@ -96,6 +106,7 @@ function CreateDatasetModal({ onClose, onCreated }: Props) {
     }
   }
 
+  // separate issues into those that block creation and those that are only warnings
   const blockingIssues = preview?.issues.filter((i) => i.isBlocking) ?? []
   const warningIssues = preview?.issues.filter((i) => !i.isBlocking) ?? []
 

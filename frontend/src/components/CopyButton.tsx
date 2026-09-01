@@ -1,3 +1,5 @@
+// provide a reusable button for copying text to the clipboard
+
 import { useState } from "react"
 import { useToast } from "../context/ToastContext"
 
@@ -14,6 +16,8 @@ function CopyButton({ text, label = "Copy" }: CopyButtonProps) {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
+
+      // reset the copied state after briefly showing confirmation
       window.setTimeout(() => setCopied(false), 1800)
     } catch (requestError) {
       const message = requestError instanceof Error

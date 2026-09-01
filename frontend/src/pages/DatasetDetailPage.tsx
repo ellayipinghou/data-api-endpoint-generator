@@ -11,20 +11,26 @@ import DatasetQueryTab from "./DatasetQueryTab"
 type DetailTab = "overview" | "api" | "query"
 
 function DatasetDetailPage() {
+  // extract dataset id from url params
   const { showError } = useToast()
   const { id } = useParams()
   const navigate = useNavigate()
   const datasetId = id ?? ""
+  
+  // dataset state including preview and metadata
   const [dataset, setDataset] = useState<Dataset | null>(null)
   const [previewRows, setPreviewRows] = useState<DataRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  
+  // ui state for tabs and delete confirmation
   const [activeTab, setActiveTab] = useState<DetailTab>("overview")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  // load dataset and preview data
   useEffect(() => {
     getDataset(datasetId)
       .then(async (loadedDataset) => {
@@ -33,6 +39,7 @@ function DatasetDetailPage() {
           setPreviewRows(rows)
           setPreviewError(null)
         } catch (requestError) {
+          // handle preview fetch failure separately from main dataset load
           const message = requestError instanceof Error
             ? requestError.message
             : "Failed to load the dataset preview."
@@ -49,6 +56,7 @@ function DatasetDetailPage() {
       .finally(() => setLoading(false))
   }, [datasetId, showError])
 
+  // delete dataset and navigate back to list
   async function handleConfirmDelete() {
     setDeleting(true)
     setDeleteError(null)
@@ -67,10 +75,12 @@ function DatasetDetailPage() {
     }
   }
 
+  // show loading state
   if (loading) {
     return <div className="empty-panel"><p>Loading dataset...</p></div>
   }
 
+  // show error state if load failed or dataset missing
   if (error || !dataset) {
     return (
       <div className="empty-panel error-box">
@@ -95,12 +105,14 @@ function DatasetDetailPage() {
         </div>
       </div>
 
+      {/* tab navigation */}
       <div className="detail-tabs" role="tablist" aria-label="Dataset detail sections">
         <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>Overview</TabButton>
         <TabButton active={activeTab === "api"} onClick={() => setActiveTab("api")}>API</TabButton>
         <TabButton active={activeTab === "query"} onClick={() => setActiveTab("query")}>Query</TabButton>
       </div>
 
+      {/* render active tab content */}
       {activeTab === "overview" ? (
         <DatasetOverviewTab
           dataset={dataset}
@@ -113,6 +125,7 @@ function DatasetDetailPage() {
         <DatasetApiTab API_URL={API_URL} dataset={dataset} />
       )}
 
+      {/* show delete confirmation modal when triggered */}
       {showDeleteConfirm && (
         <DeleteConfirmModal
           datasetName={dataset.name}
@@ -129,6 +142,7 @@ function DatasetDetailPage() {
   )
 }
 
+// reusable tab button with active state styling
 function TabButton({ active, children, onClick }: { active: boolean; children: string; onClick: () => void }) {
   return <button className={`detail-tab ${active ? "active" : ""}`} role="tab" aria-selected={active} onClick={onClick}>{children}</button>
 }

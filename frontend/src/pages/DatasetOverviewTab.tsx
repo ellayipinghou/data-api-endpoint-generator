@@ -13,6 +13,7 @@ function DatasetOverviewTab({
   previewRows,
   previewError,
 }: DatasetOverviewTabProps) {
+  // format creation date to readable string
   const createdAt = useMemo(
     () =>
       new Intl.DateTimeFormat("en-US", {
@@ -23,6 +24,7 @@ function DatasetOverviewTab({
 
   return (
     <div className="detail-tab-content">
+      {/* dataset metadata section */}
       <section className="detail-card">
         <h2>Overview</h2>
 
@@ -34,6 +36,7 @@ function DatasetOverviewTab({
 
           <div>
             <dt>Rows</dt>
+            {/* format row count with thousands separators */}
             <dd>{new Intl.NumberFormat("en-US").format(dataset.rowCount)}</dd>
           </div>
 
@@ -49,6 +52,7 @@ function DatasetOverviewTab({
         </dl>
       </section>
 
+      {/* data preview showing sample rows */}
       <section className="detail-card">
         <div className="section-heading">
           <div>
@@ -60,6 +64,7 @@ function DatasetOverviewTab({
         {previewError ? (
           <p className="inline-error">{previewError}</p>
         ) : (
+          // render preview table or empty state
           <DatasetTable
             columns={dataset.schema.columns}
             rows={previewRows}
@@ -67,6 +72,7 @@ function DatasetOverviewTab({
         )}
       </section>
 
+      {/* dataset schema showing all columns and types */}
       <section className="detail-card">
         <h2>Schema</h2>
 
@@ -74,6 +80,7 @@ function DatasetOverviewTab({
           {dataset.schema.columns.map((column) => (
             <div className="schema-list-row" key={column.name}>
               <span>{column.name}</span>
+              {/* column data type */}
               <code>{column.type}</code>
             </div>
           ))}

@@ -52,8 +52,9 @@ public class DatasetService {
         ParseResult parsed = parser.parse(new ByteArrayInputStream(content));
         DatasetSchema schema = parsed.schema();
 
-        // temporarily store file for later dataset creation
-        UUID previewId = previewStorage.save(file);
+        // temporarily store file and its parsed metadata for later dataset creation
+        PreviewMetadata metadata = new PreviewMetadata(parsed.schema(), parsed.typeOptions());
+        UUID previewId = previewStorage.save(file, metadata);
 
         List<PreviewIssue> issues = SchemaValidationHelper.collectIssues(schema);
         boolean canSubmit = SchemaValidationHelper.checkCanSubmit(issues);
@@ -84,8 +85,10 @@ public class DatasetService {
         }
 
         // full parse to get typeOptions for validating overrides
-        ParseResult parsed = parser.parse(new ByteArrayInputStream(previewBytes));
-        DatasetSchema schema = applyTypeOverrides(parsed, typeOverrides);
+        // ParseResult parsed = parser.parse(new ByteArrayInputStream(previewBytes));
+        // DatasetSchema schema = applyTypeOverrides(parsed, typeOverrides);
+        PreviewMetadata metadata = previewStorage.openMetadata(previewId);
+        DatasetSchema schema = applyTypeOverrides(metadata.schema(), typeOverrides, metadata.typeOptions());
 
         Dataset dataset;
         try (InputStream input = new ByteArrayInputStream(previewBytes)) {
@@ -98,19 +101,19 @@ public class DatasetService {
     }
 
     // apply user-provided type overrides to schema, validating against inferred type options
-    private DatasetSchema applyTypeOverrides(ParseResult parsed, Map<String, DataType> typeOverrides) {
+    private DatasetSchema applyTypeOverrides(DatasetSchema schema, Map<String, DataType> typeOverrides, Map<String, List<DataType>> typeOptions) {
         if (typeOverrides == null || typeOverrides.isEmpty()) {
-            return parsed.schema();
+            return schema;
         }
 
-        for (DataColumn column : parsed.schema().getColumns()) {
+        for (DataColumn column : schema.getColumns()) {
             DataType override = typeOverrides.get(column.getName());
             if (override == null) {
                 continue;
             }
 
             // ensure override is among the inferred type options
-            List<DataType> allowed = parsed.typeOptions().getOrDefault(column.getName(), List.of());
+            List<DataType> allowed = typeOptions.getOrDefault(column.getName(), List.of());
             if (!allowed.contains(override)) {
                 throw new InvalidTypeOverrideException(
                     "Column '" + column.getName() + "' cannot be retyped to " + override
@@ -119,7 +122,7 @@ public class DatasetService {
             }
             column.setType(override);
         }
-        return parsed.schema();
+        return schema;
     }
 
     // validate schema, generate dataset id, save metadata, create table, and load data
@@ -162,7 +165,7 @@ public class DatasetService {
     // query dataset with filter list, validating filters against schema
     public List<DataRow> queryDataset(UUID id, List<Filter> filters) {
         Dataset dataset = repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Dataset not found: " + id));
+            .orElseThrow(() -> new IllegalArgumentException("Dataset not found: " + id));
 
         List<Filter> validatedFilters = validateAndConvertFilters(dataset.getSchema(), filters);
 

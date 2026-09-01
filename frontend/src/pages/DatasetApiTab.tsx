@@ -7,21 +7,25 @@ interface DatasetOverviewTabProps {
 }
 
 function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
+  // build full endpoint url
   const endpointPath = `/datasets/${dataset.id}/query`
   const endpointUrl = `${API_URL}${endpointPath}`
 
+  // filter columns that support comparison operators
   const comparisonColumns = dataset.schema.columns.filter((column) =>
     column.operators.some((operator) =>
       [">", ">=", "<", "<="].includes(operator),
     ),
   )
 
+  // filter columns that support text search
   const containsColumns = dataset.schema.columns.filter((column) =>
     column.operators.includes("CONTAINS"),
   )
 
   return (
     <div className="detail-tab-content">
+      {/* api endpoint documentation */}
       <section className="detail-card">
         <p className="eyebrow">GET</p>
         <h2>API Endpoint</h2>
@@ -35,6 +39,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
         </div>
       </section>
 
+      {/* query parameters reference */}
       <section className="detail-card">
         <h2>Query Parameters</h2>
         <p className="section-description">
@@ -43,6 +48,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
         </p>
 
         <div className="api-parameter-list">
+          {/* equality operators */}
           <ApiParameter
             name="column=value or column_eq=value"
             description="Return rows where a column exactly matches a value."
@@ -57,6 +63,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
             example={`?${dataset.schema.columns[0]?.name ?? "column"}_ne=value`}
           />
 
+          {/* comparison operators - only show if dataset has comparable columns */}
           {comparisonColumns.length > 0 && (
             <ApiParameter
               name="column_gt=value, column_gte=value, column_lt=value, column_lte=value"
@@ -66,6 +73,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
             />
           )}
 
+          {/* text search - only show if dataset has searchable columns */}
           {containsColumns.length > 0 && (
             <ApiParameter
               name="column_contains=value"
@@ -75,6 +83,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
             />
           )}
 
+          {/* sorting and pagination */}
           <ApiParameter
             name="sort=column,asc|desc"
             description="Sort by one column. Ascending is used when the direction is omitted."
@@ -99,6 +108,7 @@ function DatasetApiTab({ API_URL, dataset }: DatasetOverviewTabProps) {
   )
 }
 
+// reusable parameter documentation component
 function ApiParameter({
   name,
   description,
@@ -115,10 +125,12 @@ function ApiParameter({
       <code>{name}</code>
       <p>{description}</p>
 
+      {/* show supported data types if available */}
       {supportedTypes && (
         <p>Supported types: {supportedTypes}</p>
       )}
 
+      {/* show usage example if available */}
       {example && (
         <span className="parameter-example">
           Example: <code>{example}</code>
